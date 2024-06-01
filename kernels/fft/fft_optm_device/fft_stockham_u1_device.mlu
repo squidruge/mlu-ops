@@ -3590,13 +3590,11 @@ __mlu_func__ void computeGenericButterflyFirststageMat(
     }
   }
 
-
   __bang_reshape_filter(in_align2.r, in_align.r, align_N, 1, 1, align_K);
   __bang_reshape_filter(in_align2.i, in_align.i, align_N, 1, 1, align_K);
 
   __memcpy(in_wram.r, in_align2.r, align_N * align_K * sizeof(DT), NRAM2WRAM);
   __memcpy(in_wram.i, in_align2.i, align_N * align_K * sizeof(DT), NRAM2WRAM);
-
 
   __bang_matmul((float *)RR, (float *)dftmtx.r, (float *)in_wram.r, align_M,
                 align_K, align_N);
@@ -3782,8 +3780,9 @@ __mlu_func__ void computeGenericButterflyOtherstagesMat(
     //          butterfly_num * section_num * radix * sizeof(DT),
     //          para_large_butterfly - 1);
 
-    // 0: [para_large_butterfly, section_num, butterfly_num] * twiddles[butterfly_num * 0]
-    // 1: [para_large_butterfly, section_num, butterfly_num] * twiddles[butterfly_num * 1]
+    // 0: [para_large_butterfly, section_num, butterfly_num] *
+    // twiddles[butterfly_num * 0] 1: [para_large_butterfly, section_num,
+    // butterfly_num] * twiddles[butterfly_num * 1]
 
     // if (i > 0) {
     __bang_cycle_mul(&RR[(i - 1) * para_num], &Fin.r[nram_in_offset],
@@ -4316,7 +4315,7 @@ __mlu_func__ void computeLargeButterflyFirststage(
     }
 
     // pipeline: compute-stage
-    
+
     if (repeat_id >= 1 && repeat_id < repeat_num + 1) {
       int i = max_para_ldst_num * (repeat_id - 1);
 
@@ -5000,7 +4999,7 @@ __mlu_func__ void computeLargeButterflyOtherstages(
       }
       // __sync();
       // pipeline: compute-stage
-      
+
       if (repeat_id >= 1 && repeat_id < repeat_num + 1) {
         // MLULOG("pipeline: compute-stage.\n");
         int i = max_para_ldst_num * (repeat_id - 1);
@@ -5141,10 +5140,11 @@ __mlu_func__ void computeLargeButterflyOtherstages(
               // out: [butterfly_num, radix]
 
               // para_ldst_num != 1
-              // in: [radix, butterfly_num, para_ldst_num] == [large_radix, para_ldst_num]
-              // butterfly: [radix, radix] * [radix, butterfly_num, para_ldst_num]
-              // out_butterfly: [radix, butterfly_num, para_ldst_num] == [radix, butterfly_num * para_ldst_num]
-              // out: [butterfly_num, para_ldst_num, radix]
+              // in: [radix, butterfly_num, para_ldst_num] == [large_radix,
+              // para_ldst_num] butterfly: [radix, radix] * [radix,
+              // butterfly_num, para_ldst_num] out_butterfly: [radix,
+              // butterfly_num, para_ldst_num] == [radix, butterfly_num *
+              // para_ldst_num] out: [butterfly_num, para_ldst_num, radix]
 
               computeGenericButterflyFirststageMat(
                   nram_out_r, nram_out_i, nram_para_load_in.r,
@@ -5153,7 +5153,6 @@ __mlu_func__ void computeLargeButterflyOtherstages(
                   small_section_num * para_ldst_num, 1, dir, radix);
               break;
           }
-
 
           //           for (int j = 0; j < large_radix; j++) {
           //   MLULOG("output i: (%f, %f).\n", nram_out_r[j], nram_out_i[j]);
@@ -5215,7 +5214,6 @@ __mlu_func__ void computeLargeButterflyOtherstages(
             continue;
           }
 
-
           FFT_SWAP_PTR(nram_out_r, nram_in_r);
           FFT_SWAP_PTR(nram_out_i, nram_in_i);
           // DT* nram_transpose_store = nram_in_r;
@@ -5236,11 +5234,10 @@ __mlu_func__ void computeLargeButterflyOtherstages(
           // }
 
           // after first stage: [butterfly_num, para_ldst_num, radix]
-          // other in: [para_ldst_num, butterfly_num, radix] == [para_ldst_num, large_radix]
+          // other in: [para_ldst_num, butterfly_num, radix] == [para_ldst_num,
+          // large_radix]
           TRANSPOSE_XYZ2YXZ_PAIR(nram_out_r, nram_out_i, nram_in_r, nram_in_i,
                                  small_section_num, para_ldst_num, radix, DT)
-
-
 
           // TODO(zrg) : add not last-stage
           // if (small_stage_count == 0) {
@@ -5760,7 +5757,7 @@ __mlu_func__ void computeLargeButterflyOtherstagesColumn(
       }
       // __sync();
       // pipeline: compute-stage
-  
+
       if (repeat_id >= 1 && repeat_id < repeat_num + 1) {
         // MLULOG("pipeline: compute-stage.\n");
         // int i = (repeat_id - 1);
@@ -6307,7 +6304,6 @@ __mlu_func__ void computeMutiStageOnchip(DT *input, DT *output, int *factors,
     }
     factors = sram_factors;
   }
-
 
   __sync_cluster();
   if (__is_ipu()) {

@@ -764,15 +764,15 @@ mluOpStatus_t MLUOP_WIN_API fftTwoStepFactor(const int _n, int *facbuf) {
         }
         break;
 
-      // case 14000:
-      //   if (n % 40 == 0) {
-      //     r = 40;
-      //   } else if ((n % 25) == 0) {
-      //     r = 25;
-      //   } else if ((n % 14) == 0) {
-      //     r = 14;
-      //   }
-      //   break;
+        // case 14000:
+        //   if (n % 40 == 0) {
+        //     r = 40;
+        //   } else if ((n % 25) == 0) {
+        //     r = 25;
+        //   } else if ((n % 14) == 0) {
+        //     r = 14;
+        //   }
+        //   break;
 
       case 14000:
         if (n % 350 == 0) {
@@ -1129,7 +1129,7 @@ mluOpStatus_t MLUOP_WIN_API mluOpMakeFFTPlanMany(
     mluOpTensorDescriptor_t input_desc, mluOpTensorDescriptor_t output_desc,
     const int rank, const int *n, size_t *reservespace_size,
     size_t *workspace_size) {
-    const int direction = FFT_FORWARD;
+  const int direction = FFT_FORWARD;
   // bad param check
   const std::string make_plan_api = "[mluOpMakeFFTPlanMany]";
   // plan NULL check
