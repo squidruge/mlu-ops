@@ -54,6 +54,32 @@
 #define FFT_HALF(x) ((x) / 2 + 1)
 #endif
 
+#ifndef FFT_MAXFACTORS
+#define FFT_MAXFACTORS 278  // max length of factors[] in plan
+#endif
+
+#ifndef MAX_DFT_MATRIX_NR
+#define MAX_DFT_MATRIX_NR 21
+#endif
+
+#ifndef DFT_TABLE_SIZE
+#define DFT_TABLE_SIZE \
+  (16 * 16 * (MAX_DFT_MATRIX_NR + 1) * 8 * 2 + (MAX_DFT_MATRIX_NR + 1) * 8)
+// radix-16, 21-stages, double, complex
+// + addrs size
+#endif
+
+// transform directions
+#define FFT_FORWARD (0)
+#define FFT_BACKWARD (+1)
+
+#define FFT_PI (3.1415926535897932384626433832795)
+
+struct dft_table_entry {
+  int radix;
+  int offset;
+};
+
 typedef enum {
   FFT_IFFT = 0,
   RFFT = 1,
@@ -125,6 +151,24 @@ struct cnfftMatmulAddrs {
   size_t internal_workspace_size;
 };
 
+// struct for CNFFT_FUNC_MATMUL strategy.
+struct cnfftButterflyAddrs {
+  /* addrs set in the preprocess-stage */
+  void *input;
+  void *output;
+  void *buffer;
+  void *twiddles;
+  void *twiddles_2d;
+  void *twiddles_end;
+  void *twiddles_2d_end;
+  void *buffer_buf;
+  void *buffer_in;
+  void *buffer_out;
+  void *dft_matrix;
+  void *dft_matrix_2d;
+  int *factors;
+  int *factors_2d;
+};
 struct mluOpFFTStruct {
   int rank;            // rank of FFT
   int n[FFT_DIM_MAX];  // FFT lengths on each dimension
@@ -148,12 +192,13 @@ struct mluOpFFTStruct {
   int odist;    // distance between the first element of two consecutive signals
                 // in a batch of the output data
   int batch;    // batch size for this transform
-  int L;        // n = L * 2^m, L size for this transform
-  int m;        // n = L * 2^m, m size for this transform
-  int s;        // The size that can be put down on NRAM: L * 2^s, only used by
-                // Cooley-Tukey algorithm
-  int L_sub;    // The size that can be put down on NRAM: L_sub * 2^m, only used
-                // by  Stockham algorithm
+  int batch_2d;  // batch size for this transform
+  int L;         // n = L * 2^m, L size for this transform
+  int m;         // n = L * 2^m, m size for this transform
+  int s;         // The size that can be put down on NRAM: L * 2^s, only used by
+                 // Cooley-Tukey algorithm
+  int L_sub;  // The size that can be put down on NRAM: L_sub * 2^m, only used
+              // by  Stockham algorithm
   bool is_input_contiguous;
   bool is_output_contiguous;
   size_t reservespace_size;
@@ -164,6 +209,15 @@ struct mluOpFFTStruct {
   mluOpTensorDescriptor_t output_desc;
   void *reservespace_addr;
   cnfftMatmulAddrs matmul_addrs;
+  int *factors;
+  int *factors_2d;
+  void *twiddles;
+  void *twiddles_2d;
+  void *twiddles_end;
+  void *twiddles_2d_end;
+  void *dft_matrix;
+  void *dft_matrix_2d;
+  cnfftButterflyAddrs mlu_addrs;
 };
 
 struct ParamNode {
@@ -229,6 +283,22 @@ mluOpStatus_t MLUOP_WIN_API
 kernelFFTStockham(cnrtDim3_t k_dim, cnrtFunctionType_t k_type,
                   cnrtQueue_t queue, mluOpFFTPlan_t fft_plan, int direction,
                   const float scale_factor, FFTFlag flag);
+
+mluOpStatus_t MLUOP_WIN_API kernelFFTButterfly(cnrtDim3_t k_dim,
+                                               cnrtFunctionType_t k_type,
+                                               cnrtQueue_t queue,
+                                               mluOpFFTPlan_t fft_plan,
+                                               int direction, FFTFlag flag);
+
+mluOpStatus_t MLUOP_WIN_API kernelFFTButterfly2d(cnrtDim3_t k_dim,
+                                                 cnrtFunctionType_t k_type,
+                                                 cnrtQueue_t queue,
+                                                 mluOpFFTPlan_t fft_plan,
+                                                 int direction, FFTFlag flag);
+
+mluOpStatus_t MLUOP_WIN_API kernelFFTButterflyColumn(
+    cnrtDim3_t k_dim, cnrtFunctionType_t k_type, cnrtQueue_t queue,
+    mluOpFFTPlan_t fft_plan, int direction, FFTFlag flag);
 
 mluOpStatus_t MLUOP_WIN_API kernelC2CFFTDFTMatrix(
     cnrtDim3_t k_dim, cnrtFunctionType_t k_type, cnrtQueue_t queue,
