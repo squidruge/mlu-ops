@@ -148,22 +148,31 @@ __mlu_func__ void computeMutiStageOnchip(DT *input, DT *output, int *factors,
     if (_stage_count != 1) FFT_SWAP_PTR(buffer, output);
 
     if (repeat_num > 0 || taskId < remain_num) {
-      for (int t = t_start; t < t_end; t++) {
-        // MLULOG("taskId: %d, batchId: %d\n", taskId, t);
-        DT *input_batch = input + t * (nfft << 1);
-        DT *output_batch = output + t * (nfft << 1);
+      if (6000 / radix > repeat_num) {
+        for (int t = t_start; t < t_end; t++) {
+          // MLULOG("taskId: %d, batchId: %d\n", taskId, t);
+          DT *input_batch = input + t * (nfft << 1);
+          DT *output_batch = output + t * (nfft << 1);
 
-        // DT *buffer_batch = buffer + t * (nfft * 2);
-        // DT *odd_extra_buffer_batch = odd_extra_buffer + t * (nfft * 2);
+          // DT *buffer_batch = buffer + t * (nfft * 2);
+          // DT *odd_extra_buffer_batch = odd_extra_buffer + t * (nfft * 2);
 
-        // first stage
+          // first stage
 
-        computeLargeButterflyFirststage<DT>(
-            output_batch, input_batch, in_stride, section_num, twiddles,
-            sram_dftmtx, (void *)nram_buf, small_factors, direction, nfft,
-            last_stage);
+          computeLargeButterflyFirststage<DT>(
+              output_batch, input_batch, in_stride, section_num, twiddles,
+              sram_dftmtx, (void *)nram_buf, small_factors, direction, nfft,
+              last_stage);
+        }
+      } else {
+        // printf("computeLargeButterflyFirststageBatchPingpong\n");
+        computeLargeButterflyFirststageBatchPingpong<DT>(
+            output, input, in_stride, section_num, twiddles, sram_dftmtx,
+            (void *)nram_buf, small_factors, direction, nfft, last_stage,
+            t_start, t_end);
       }
     }
+
     // __sync();
   } else {
     stage_count = _stage_count;
