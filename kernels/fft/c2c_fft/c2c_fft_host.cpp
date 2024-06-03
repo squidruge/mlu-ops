@@ -581,16 +581,32 @@ mluOpStatus_t setFFT1dReserveArea_v2(mluOpHandle_t handle,
 
   // int batch = fft_plan->batch;
   int nfft = fft_plan->n[0];
-
+  size_t factors_size = FFT_MAXFACTORS * sizeof(int);  // bytes
   // size_t buffer_size = batch * sizeof(CPX_TYPE_SIZE) * nfft;
   size_t twiddles_size = sizeof(CPX_TYPE_SIZE) * nfft * 2;
   // size_t dft_table_size = sizeof(CPX_TYPE_SIZE) * nfft * 2;
 
-  fft_plan->mlu_addrs.twiddles = (uint8_t *)fft_plan->reservespace_addr;
+  // fft_plan->mlu_addrs.twiddles = (uint8_t *)fft_plan->reservespace_addr;
+  // fft_plan->mlu_addrs.dft_matrix =
+  //     (int *)((uint8_t *)fft_plan->mlu_addrs.twiddles + twiddles_size);
+  // fft_plan->mlu_addrs.factors =
+  //     (int *)((uint8_t *)fft_plan->mlu_addrs.dft_matrix + DFT_TABLE_SIZE);
+
+  size_t reservespace_offset = 0;
+  fft_plan->mlu_addrs.twiddles =
+      (uint8_t *)fft_plan->reservespace_addr + reservespace_offset;
+  reservespace_offset += twiddles_size;
+  fft_plan->mlu_addrs.twiddles_end =
+      (uint8_t *)fft_plan->mlu_addrs.twiddles +
+      ((uint8_t *)fft_plan->twiddles_end - (uint8_t *)fft_plan->twiddles);
+
   fft_plan->mlu_addrs.dft_matrix =
-      (int *)((uint8_t *)fft_plan->mlu_addrs.twiddles + twiddles_size);
+      (int *)((uint8_t *)fft_plan->reservespace_addr + reservespace_offset);
+  reservespace_offset += DFT_TABLE_SIZE;
+
   fft_plan->mlu_addrs.factors =
-      (int *)((uint8_t *)fft_plan->mlu_addrs.dft_matrix + DFT_TABLE_SIZE);
+      (int *)((uint8_t *)fft_plan->reservespace_addr + reservespace_offset);
+  reservespace_offset += factors_size;
 
   CNRT_CHECK(cnrtMemcpy(fft_plan->mlu_addrs.factors, fft_plan->factors,
                         FFT_MAXFACTORS * sizeof(int), cnrtMemcpyHostToDev));

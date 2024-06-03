@@ -22,6 +22,12 @@
  *************************************************************************/
 #pragma once
 
+template <typename DT>
+struct FFT_CPX_T {
+  DT *r;
+  DT *i;
+};
+
 #define fft_swap_ptr_macro(X, Y)         \
   {                                      \
     X = ((intptr_t)(X) ^ (intptr_t)(Y)); \
@@ -29,11 +35,11 @@
     X = ((intptr_t)(X) ^ (intptr_t)(Y)); \
   }
 
-#define FFT_SWAP_PTR(X, Y)                    \
-  {                                           \
-    X = (DT*)((intptr_t)(X) ^ (intptr_t)(Y)); \
-    Y = (DT*)((intptr_t)(X) ^ (intptr_t)(Y)); \
-    X = (DT*)((intptr_t)(X) ^ (intptr_t)(Y)); \
+#define FFT_SWAP_PTR(X, Y)                     \
+  {                                            \
+    X = (DT *)((intptr_t)(X) ^ (intptr_t)(Y)); \
+    Y = (DT *)((intptr_t)(X) ^ (intptr_t)(Y)); \
+    X = (DT *)((intptr_t)(X) ^ (intptr_t)(Y)); \
   }
 
 // #define FFT_SWAP_PTR(A, B) \
