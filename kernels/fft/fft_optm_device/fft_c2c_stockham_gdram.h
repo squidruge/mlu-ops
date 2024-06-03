@@ -148,7 +148,7 @@ __mlu_func__ void computeMutiStageOnchip(DT *input, DT *output, int *factors,
     if (_stage_count != 1) FFT_SWAP_PTR(buffer, output);
 
     if (repeat_num > 0 || taskId < remain_num) {
-      if (6000 / radix > repeat_num) {
+      if (6000 / radix > repeat_num && 0) {
         for (int t = t_start; t < t_end; t++) {
           // MLULOG("taskId: %d, batchId: %d\n", taskId, t);
           DT *input_batch = input + t * (nfft << 1);
@@ -226,17 +226,25 @@ __mlu_func__ void computeMutiStageOnchip(DT *input, DT *output, int *factors,
 
     if (__is_ipu()) {
       // MLULOG("other stage radix: %d \n", radix);
-      if (repeat_num > 0 || taskId < remain_num) {
-        for (int t = t_start; t < t_end; t++) {
-          DT *output_batch = output + t * (nfft << 1);
-          DT *buffer_batch = buffer + t * (nfft << 1);
+      if (0) {
+        if (repeat_num > 0 || taskId < remain_num) {
+          for (int t = t_start; t < t_end; t++) {
+            DT *output_batch = output + t * (nfft << 1);
+            DT *buffer_batch = buffer + t * (nfft << 1);
 
-          computeLargeButterflyOtherstages<DT>(
-              output_batch, buffer_batch, (DT *)twiddles, _twiddles,
+            computeLargeButterflyOtherstages<DT>(
+                output_batch, buffer_batch, (DT *)twiddles, _twiddles,
+                sram_dftmtx, section_num, butterfly_num, in_stride,
+                (void *)nram_buf, small_factors, nfft, direction, 0);
+
+            // __sync();
+          }
+        } else {
+          computeLargeButterflyOtherstagesBatchPingpong<DT>(
+              output, buffer, (DT *)twiddles, _twiddles,
               sram_dftmtx, section_num, butterfly_num, in_stride,
-              (void *)nram_buf, small_factors, nfft, direction, 0);
-
-          // __sync();
+              (void *)nram_buf, small_factors, nfft,  t_start, t_end,
+              direction, 0);
         }
       }
     }
@@ -267,14 +275,21 @@ __mlu_func__ void computeMutiStageOnchip(DT *input, DT *output, int *factors,
       MLULOG("last stage radix: %d, section_num: %d\n", radix, section_num);
 
       if (repeat_num > 0 || taskId < remain_num) {
-        for (int t = t_start; t < t_end; t++) {
-          DT *output_batch = output + t * (nfft << 1);
-          DT *buffer_batch = buffer + t * (nfft << 1);
+        if (0) {
+          for (int t = t_start; t < t_end; t++) {
+            DT *output_batch = output + t * (nfft << 1);
+            DT *buffer_batch = buffer + t * (nfft << 1);
 
-          computeLargeButterflyLaststage<DT>(
-              output_batch, buffer_batch, (DT *)twiddles, _twiddles,
+            computeLargeButterflyLaststage<DT>(
+                output_batch, buffer_batch, (DT *)twiddles, _twiddles,
+                sram_dftmtx, section_num, butterfly_num, in_stride,
+                (void *)nram_buf, small_factors, nfft, direction);
+          }
+        } else {
+          computeLargeButterflyLaststageBatchPingpong(
+              output, buffer, (DT *)twiddles, _twiddles,
               sram_dftmtx, section_num, butterfly_num, in_stride,
-              (void *)nram_buf, small_factors, nfft, direction);
+              (void *)nram_buf, small_factors, nfft, t_start, t_end, direction);
         }
       }
     }
