@@ -558,6 +558,12 @@ x_7\\
 - 蝶形计算目前采用matmul指令实现
   - 实现了generic的kernel实现蝶形计算，可以用于计算radix-2~64的小基
 
+- 步骤如下
+   - device端调用片下蝶形网络执行代码，c2c1d行主序对应函数为`computeMutiStageOnchip`，代码位于 kernels/fft/fft_optm_device/fft_two-level_network_c2c_device.mlu
+   - computeMutiStageOnchip获取fft_plan中的网络参数，执行各个stage的大基实现，例如第一级大基对应函数`computeLargeButterflyFirststage`，代码位于 kernels/fft/fft_optm_device/fft_c2c_stockham_gdram.h
+   - 大基执行函数亦为片上网络，与片下网络类似，继续调用小基kernel，代码位于 kernels/fft/fft_optm_device/fft_c2c_stockham_nram.h
+   - 小基kernel代码分为为特定基实现的向量化版本（kernels/fft/fft_optm_device/fft_vector_butterfly.h）以及generic的矩阵实现版本（kernels/fft/fft_optm_device/fft_generic_butterfly.h）
+
 ### 3.3 拆分(任务拆分，多核拆分)
 
 1. 一个ipu负责处理连续的多个batch。
