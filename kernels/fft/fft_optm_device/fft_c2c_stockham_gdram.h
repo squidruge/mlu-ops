@@ -114,7 +114,7 @@ __mlu_func__ void computeMutiStageOnchip(DT *input, DT *output, int *factors,
         }
       }
     }
-    factors = sram_factors;
+    // factors = sram_factors;
   }
 
   __sync_cluster();
@@ -226,7 +226,7 @@ __mlu_func__ void computeMutiStageOnchip(DT *input, DT *output, int *factors,
 
     if (__is_ipu()) {
       // MLULOG("other stage radix: %d \n", radix);
-      if (0) {
+      if (6000 / radix > repeat_num && 0) {
         if (repeat_num > 0 || taskId < remain_num) {
           for (int t = t_start; t < t_end; t++) {
             DT *output_batch = output + t * (nfft << 1);
@@ -239,12 +239,12 @@ __mlu_func__ void computeMutiStageOnchip(DT *input, DT *output, int *factors,
 
             // __sync();
           }
-        } else {
-          computeLargeButterflyOtherstagesBatchPingpong<DT>(
-              output, buffer, (DT *)twiddles, _twiddles, sram_dftmtx,
-              section_num, butterfly_num, in_stride, (void *)nram_buf,
-              small_factors, nfft, t_start, t_end, direction, 0);
         }
+      } else {
+        computeLargeButterflyOtherstagesBatchPingpong<DT>(
+            output, buffer, (DT *)twiddles, _twiddles, sram_dftmtx, section_num,
+            butterfly_num, in_stride, (void *)nram_buf, small_factors, nfft,
+            t_start, t_end, direction, 0);
       }
     }
     twiddles += butterfly_num * (radix - 1) * 2;  // 2 for complex
@@ -399,7 +399,7 @@ __mlu_func__ void computeMutiStageOnchipColumn(
 
   DT *odd_extra_buffer;
   // TODO(zrg): find largest radix, 6000/ largest
-  int max_para_batch = 6000 / radix;
+  int max_para_batch = 6144 / radix;
   //  int max_para_batch = 6000/64;
 
   if (__is_ipu()) {

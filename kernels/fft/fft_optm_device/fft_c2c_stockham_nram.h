@@ -882,10 +882,20 @@ __mlu_func__ void computeLargeButterflyFirststageBatchPingpong(
                 break;
 
               default:
-                computeGenericButterflyLaststageMat(
-                    nram_out_r, nram_out_i, nram_in_r, nram_in_i, nram_scratch,
-                    nram_dftmtx, nram_tw, small_section_num,
-                    small_butterfly_num, para_num, small_in_stride, dir, radix);
+                if (last_stage) {
+                  computeGenericButterflyLaststageMat(
+                      nram_out_r, nram_out_i, nram_in_r, nram_in_i,
+                      nram_scratch, nram_dftmtx, nram_tw, small_section_num,
+                      small_butterfly_num, para_num, small_in_stride, dir,
+                      radix);
+                } else {
+                  computeGenericButterflyLaststageMat(
+                      nram_para_store,
+                      nram_para_store + max_para_ldst_num * large_radix,
+                      nram_in_r, nram_in_i, nram_scratch, nram_dftmtx, nram_tw,
+                      small_section_num, small_butterfly_num, para_num,
+                      small_in_stride, dir, radix);
+                }
                 break;
             }
 
@@ -896,15 +906,6 @@ __mlu_func__ void computeLargeButterflyFirststageBatchPingpong(
 
               __bang_transpose(nram_para_store, nram_out_r, 2,
                                max_para_ldst_num * large_radix);
-            } else {
-              //  [2, para_ldst_num, large_radix] -> [2, para_ldst_num,
-              //  large_radix]
-              // TODO(zrg): redundant move
-              __memcpy(nram_para_store, nram_out_r,
-                       para_num * large_radix * sizeof(DT), NRAM2NRAM);
-              __memcpy(nram_para_store + max_para_ldst_num * large_radix,
-                       nram_out_i, para_num * large_radix * sizeof(DT),
-                       NRAM2NRAM);
             }
           }
         }
