@@ -26,7 +26,7 @@
 extern __wram__ char wram_buffer[MAX_WRAM_SIZE];
 
 template <typename DT>
-__mlu_func__ void computeGenericButterflyFirststageMat(
+__mlu_func__ void computeGenericButterflyFirststageMat_v1(
     DT *nram_out_r, DT *nram_out_i, DT *nram_in_r, DT *nram_in_i,
     DT *nram_scratch, DT *nram_dftmtx, int section_num, int butterfly_num,
     int in_stride, int dir, int radix) {
@@ -147,6 +147,122 @@ __mlu_func__ void computeGenericButterflyFirststageMat(
   __bang_transpose(out_trans.i, out.i, align_M, align_N);
   __memcpy(nram_out_i, out_trans.i, radix * butterfly_num * sizeof(DT),
            NRAM2NRAM);
+}
+
+template <typename DT>
+__mlu_func__ void computeGenericButterflyFirststageMat(
+    DT *nram_out_r, DT *nram_out_i, DT *nram_in_r, DT *nram_in_i,
+    DT *nram_scratch, DT *nram_dftmtx, int section_num, int butterfly_num,
+    int in_stride, int dir, int radix) {
+  // outplace(nram)
+
+#define in_trans_r (nram_out_r)
+#define in_trans_i (&nram_out_r[radix * butterfly_num])
+
+  __bang_transpose(in_trans_r, nram_in_r, radix, butterfly_num);
+  __bang_transpose(in_trans_i, nram_in_i, radix, butterfly_num);
+
+  // origin: M = radix, K = radix, N =butterfly_num
+  // pad_up:
+  const int para_num = butterfly_num * 2;
+  // const int radix = 16;
+  const int align_M = radix;  // no align
+  const int K_num = 64 / sizeof(DT);
+  const int align_K = K_num * ((radix + K_num - 1) / K_num);
+  const int align_N = 64 * ((para_num + 64 - 1) / 64);
+  // const int align_N = 64 * ((butterfly_num + 64 - 1) / 64);
+
+  int nram_scratch_offset = 0;
+  DT *in_wram = (DT *)wram_buffer;
+
+  // int wram_scratch_offset = 0;
+  // DT *wram_sratch = (DT *)wram_buffer;
+
+  // FFT_CPX_T<DT> in_wram = {
+  //     &wram_sratch[wram_scratch_offset],
+  //     &wram_sratch[wram_scratch_offset + align_N * align_K]};
+  // DT * in_wram = &wram_sratch[wram_scratch_offset];
+  // wram_scratch_offset += (align_N * align_K);
+
+  // overlap
+  // !!! align_N * align_K * 2
+  DT *RR_RI_trans = &nram_scratch[nram_scratch_offset];
+  DT *IR_II_trans = &nram_scratch[nram_scratch_offset + align_N * align_M];
+
+  DT *in_align = &nram_scratch[nram_scratch_offset];
+
+  nram_scratch_offset += (align_N * align_M * 2);
+
+  // overlap
+  DT *in_align2 = &nram_scratch[nram_scratch_offset];
+
+  DT *RR_RI = &nram_scratch[nram_scratch_offset];
+  DT *IR_II = &nram_scratch[nram_scratch_offset + align_M * align_N];
+  nram_scratch_offset += (align_M * 2 * align_N);
+
+  // overlap
+  // FFT_CPX_T<DT> in_align2 = {
+  //     &nram_scratch[nram_scratch_offset],
+  //     &nram_scratch[nram_scratch_offset + align_N * align_K]};
+  // FFT_CPX_T<DT> out = {&nram_scratch[nram_scratch_offset],
+  //                      &nram_scratch[nram_scratch_offset + align_M *
+  //                      butterfly_num]};
+
+  // FFT_CPX_T<DT> in_trans = {nram_out_r, nram_out_i};
+  // FFT_CPX_T<DT> in_trans = {nram_out_r, &nram_out_r[radix*butterfly_num]};
+
+  FFT_CPX_T<DT> dftmtx;
+
+  if (align_K != radix) {
+    dftmtx = {&nram_scratch[nram_scratch_offset],
+              &nram_scratch[nram_scratch_offset + align_M * align_K]};
+    nram_scratch_offset += (align_M * align_K * 2);
+    __bang_pad(dftmtx.r, nram_dftmtx, 1, radix, radix, 0, 0, 0,
+               align_K - radix);
+    __bang_pad(dftmtx.i, &nram_dftmtx[radix * radix], 1, radix, radix, 0, 0, 0,
+               align_K - radix);
+
+  } else {
+    dftmtx = {nram_dftmtx, &nram_dftmtx[radix * radix]};
+  }
+
+  // if (align_K == radix) {
+  //   if (align_N != para_num) {
+  //     __bang_pad(in_align, in_trans.r, 1, para_num, radix, 0,
+  //                align_N - para_num, 0, 0);
+  //   } else {
+  //     in_align = in_trans.r;
+  //   }
+  // } else {
+  //     __bang_pad(in_align, in_trans.r, 1, para_num, radix, 0,
+  //                align_N - para_num, 0, align_K - radix);
+  // }
+
+  if (align_K == radix && align_N == para_num) {
+    in_align = in_trans_r;
+  } else {
+    __bang_pad(in_align, in_trans_r, 1, para_num, radix, 0, align_N - para_num,
+               0, align_K - radix);
+  }
+
+  __bang_reshape_filter(in_align2, in_align, align_N, 1, 1, align_K);
+  __memcpy(in_wram, in_align2, align_N * align_K * sizeof(DT), NRAM2WRAM);
+
+  __bang_matmul((float *)RR_RI, (float *)dftmtx.r, (float *)in_wram, align_M,
+                align_K, align_N);
+  __bang_transpose(RR_RI_trans, RR_RI, align_M, align_N);
+  __bang_matmul((float *)IR_II, (float *)dftmtx.i, (float *)in_wram, align_M,
+                align_K, align_N);
+  __bang_transpose(IR_II_trans, IR_II, align_M, align_N);
+
+  // DT *RR_trans = &RR_RI_trans[0];
+  // DT *RI_trans = &RR_RI_trans[butterfly_num * radix];
+  // DT *IR_trans = &IR_II_trans[0];
+  // DT *II_trans = &IR_II_trans[butterfly_num * radix];
+  __bang_sub(nram_out_r, RR_RI_trans, &IR_II_trans[butterfly_num * radix],
+             radix * butterfly_num);
+  __bang_add(nram_out_i, &RR_RI_trans[butterfly_num * radix], &IR_II_trans[0],
+             radix * butterfly_num);
 }
 
 template <typename DT>

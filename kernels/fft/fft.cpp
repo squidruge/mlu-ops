@@ -518,8 +518,8 @@ mluOpStatus_t MLUOP_WIN_API fftFactor(const int _n, int *facbuf,
         break;
 
       case 64:
-        if (n % 8 == 0) {
-          r = 8;
+        if (n % 64 == 0) {
+          r = 64;
         } else if ((n % 8) == 0) {
           r = 8;
         }
