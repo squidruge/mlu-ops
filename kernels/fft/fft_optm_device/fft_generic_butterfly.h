@@ -26,7 +26,7 @@
 extern __wram__ char wram_buffer[MAX_WRAM_SIZE];
 
 template <typename DT>
-__mlu_func__ void computeGenericButterflyFirststageMat(
+__mlu_func__ void computeGenericButterflyFirststageMat_v1(
     DT *nram_out_r, DT *nram_out_i, DT *nram_in_r, DT *nram_in_i,
     DT *nram_scratch, DT *nram_dftmtx, int section_num, int butterfly_num,
     int in_stride, int dir, int radix) {
@@ -151,7 +151,7 @@ __mlu_func__ void computeGenericButterflyFirststageMat(
 }
 
 template <typename DT>
-__mlu_func__ void computeGenericButterflyFirststageMat_v2(
+__mlu_func__ void computeGenericButterflyFirststageMat(
     DT *nram_out_r, DT *nram_out_i, DT *nram_in_r, DT *nram_in_i,
     DT *nram_scratch, DT *nram_dftmtx, int section_num, int butterfly_num,
     int in_stride, int dir, int radix) {

@@ -1583,7 +1583,7 @@ __mlu_func__ void computeLargeButterflyOtherstagesBatchPingpong(
 
   const DT *small_twiddles = _twiddles + tw_offset * 2;  // complex
 
-  const int max_para_ldst_num = (5600 + large_radix - 1) / large_radix;
+  const int max_para_ldst_num = (4096 + large_radix - 1) / large_radix;
 
   // int para_ldst_num;
   // TODO(zrg): save nram space.
