@@ -42,6 +42,13 @@ struct FFT_CPX_T {
     X = (DT *)((intptr_t)(X) ^ (intptr_t)(Y)); \
   }
 
+#define FFT_SWAP_PTR_T(X, Y, T)               \
+  {                                           \
+    X = (T *)((intptr_t)(X) ^ (intptr_t)(Y)); \
+    Y = (T *)((intptr_t)(X) ^ (intptr_t)(Y)); \
+    X = (T *)((intptr_t)(X) ^ (intptr_t)(Y)); \
+  }
+
 // #define FFT_SWAP_PTR(A, B) \
 //   {                        \
 //     DT *tmp = A;           \
