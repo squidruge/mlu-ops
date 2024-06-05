@@ -400,7 +400,7 @@ __mlu_func__ void computeMutiStageOnchipColumn(
 
   DT *odd_extra_buffer;
   // TODO(zrg): find largest radix, 6000/ largest
-  int max_para_batch = 6144 / radix;
+  int max_para_batch = (6144 / radix) > batch ? batch : (6144 / radix);
   //  int max_para_batch = 6000/64;
 
   if (__is_ipu()) {

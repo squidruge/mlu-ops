@@ -2267,20 +2267,8 @@ __mlu_func__ void computeLargeButterflyFirststageColumn(
   // last-large-stage real array, imag array -> complex
   const DT *small_twiddles = twiddles + tw_offset * 2;  // complex
 
-  // TODO(zrg): save nram space.
   // assign nram space
   int nram_buf_offset = 0;
-  DT *nram_in_r = (DT *)nram_buf + nram_buf_offset;
-  nram_buf_offset += large_radix * para_batch;
-
-  DT *nram_in_i = (DT *)nram_buf + nram_buf_offset;
-  nram_buf_offset += large_radix * para_batch;
-
-  DT *nram_out_r = (DT *)nram_buf + nram_buf_offset;
-  nram_buf_offset += large_radix * para_batch;
-
-  DT *nram_out_i = (DT *)nram_buf + nram_buf_offset;
-  nram_buf_offset += large_radix * para_batch;
 
   // parallel load/store space
   // sizeof(DT) * 2 * large_radix * para_batch * 4
@@ -2364,8 +2352,6 @@ __mlu_func__ void computeLargeButterflyFirststageColumn(
     if (repeat_id < repeat_num) {
       // MLULOG("pipeline: load-stage.\n");
       int i = repeat_id;
-      DT *nram_para_load =
-          (repeat_id % 2 == 0) ? nram_para_load_ping : nram_para_load_pong;
 
       // DT *nram_dftmtx =
       //     (repeat_id % 2 == 0) ? nram_dftmtx_ping : nram_dftmtx_pong;
@@ -2392,7 +2378,7 @@ __mlu_func__ void computeLargeButterflyFirststageColumn(
       // para_batch,
       //                GDRAM2NRAM);
       //                 if(0)
-      __memcpy_async(nram_para_load, input + i * 2 * nb1,
+      __memcpy_async(nram_para_load_ping, input + i * 2 * nb1,
                      sizeof(DT) * 2 * para_batch, GDRAM2NRAM,
                      sizeof(DT) * 2 * para_batch,
                      nb1 * large_in_stride * sizeof(DT) * 2, large_radix - 1);
@@ -2404,12 +2390,9 @@ __mlu_func__ void computeLargeButterflyFirststageColumn(
       // MLULOG("pipeline: store-stage.\n");
       int i = (repeat_id - 2);
 
-      DT *nram_para_store =
-          (repeat_id % 2 == 0) ? nram_para_store_ping : nram_para_store_pong;
-
       if (last_stage) {
         // if(0)
-        __memcpy_async(output + i * large_radix * 2 * nb1, nram_para_store,
+        __memcpy_async(output + i * large_radix * 2 * nb1, nram_para_store_ping,
                        para_batch * sizeof(DT) * 2, NRAM2GDRAM,
                        nb1 * 2 * sizeof(DT), para_batch * sizeof(DT) * 2,
                        large_radix - 1);
@@ -2424,12 +2407,13 @@ __mlu_func__ void computeLargeButterflyFirststageColumn(
         //                para_batch * sizeof(DT), NRAM2GDRAM, nb1 * sizeof(DT),
         //                para_batch * sizeof(DT), large_radix - 1);
         // real
-        __memcpy_async(output + i * large_radix * para_batch, nram_para_store,
+        __memcpy_async(output + i * large_radix * para_batch,
+                       nram_para_store_ping,
                        para_batch * large_radix * sizeof(DT), NRAM2GDRAM);
         // imag
         __memcpy_async(
             output + i * large_radix * para_batch + nfft * para_batch,
-            nram_para_store + para_batch * large_radix,
+            nram_para_store_ping + para_batch * large_radix,
             para_batch * large_radix * sizeof(DT), NRAM2GDRAM);
       }
     }
@@ -2438,11 +2422,6 @@ __mlu_func__ void computeLargeButterflyFirststageColumn(
 
     if (repeat_id >= 1 && repeat_id < repeat_num + 1) {
       //   int i = (repeat_id - 1);
-
-      DT *nram_para_load =
-          (repeat_id % 2 != 0) ? nram_para_load_ping : nram_para_load_pong;
-      DT *nram_para_store =
-          (repeat_id % 2 != 0) ? nram_para_store_ping : nram_para_store_pong;
 
       // // [large_radix, para_batch, 2] -> [para_batch, 2, large_radix]
       // __bang_transpose(nram_transpose_load, nram_para_load, large_radix,
@@ -2460,8 +2439,15 @@ __mlu_func__ void computeLargeButterflyFirststageColumn(
       //                  nram_transpose_load + large_radix * para_batch,
       //                  large_radix, para_batch);
 
+      DT *nram_in_r = nram_para_store_pong;
+      DT *nram_in_i = nram_para_store_pong + large_radix * para_batch;
+
+      DT *nram_out_r = nram_para_load_pong;
+      DT *nram_out_i = nram_para_load_pong + large_radix * para_batch;
+
       // DT *nram_transpose_load = nram_in_r;
-      __bang_transpose(nram_in_r, nram_para_load, large_radix * para_batch, 2);
+      __bang_transpose(nram_in_r, nram_para_load_pong, large_radix * para_batch,
+                       2);
       // [large_radix, para_batch] -> [para_batch, large_radix]
       // __bang_transpose(nram_in_r, nram_transpose_load, large_radix,
       //                  para_batch);
@@ -2540,16 +2526,17 @@ __mlu_func__ void computeLargeButterflyFirststageColumn(
             //  2]
             // DT* nram_transpose_store = nram_in_r;
 
-            __bang_transpose(nram_para_store, nram_out_r, 2,
+            __bang_transpose(nram_para_store_pong, nram_out_r, 2,
                              para_batch * large_radix);
           } else {
             //  [2, para_batch, large_radix] -> [2, para_batch,
             //  large_radix]
             // TODO(zrg): redundant move
-            __memcpy(nram_para_store, nram_out_r,
+            __memcpy(nram_para_store_pong, nram_out_r,
                      para_batch * large_radix * sizeof(DT), NRAM2NRAM);
-            __memcpy(nram_para_store + para_batch * large_radix, nram_out_i,
-                     para_batch * large_radix * sizeof(DT), NRAM2NRAM);
+            __memcpy(nram_para_store_pong + para_batch * large_radix,
+                     nram_out_i, para_batch * large_radix * sizeof(DT),
+                     NRAM2NRAM);
           }
 
           continue;
@@ -2692,7 +2679,11 @@ __mlu_func__ void computeLargeButterflyFirststageColumn(
             __bang_transpose(nram_out_r, nram_in_r, para_batch, large_radix);
             __bang_transpose(nram_out_i, nram_in_i, para_batch, large_radix);
 
-            __bang_transpose(nram_para_store, nram_out_r, 2,
+            if (nram_out_r == nram_para_store_pong) {
+              FFT_SWAP_PTR(nram_para_load_pong, nram_para_store_pong)
+            }
+
+            __bang_transpose(nram_para_store_pong, nram_out_r, 2,
                              para_batch * large_radix);
             //  [2, para_batch, large_radix] -> [para_batch, 2, large_radix] ->
             //  [large_radix, para_batch, 2]
@@ -2702,10 +2693,13 @@ __mlu_func__ void computeLargeButterflyFirststageColumn(
             //  [2, para_batch, large_radix] -> [2, para_batch,
             //  large_radix]
             // TODO(zrg): test
+            if (nram_out_r == nram_para_store_pong) {
+              FFT_SWAP_PTR(nram_para_load_pong, nram_para_store_pong)
+            }
 
-            __bang_transpose(nram_para_store, nram_out_r, para_batch,
+            __bang_transpose(nram_para_store_pong, nram_out_r, para_batch,
                              large_radix);
-            __bang_transpose(nram_para_store + para_batch * large_radix,
+            __bang_transpose(nram_para_store_pong + para_batch * large_radix,
                              nram_out_i, para_batch, large_radix);
 
             // __memcpy(nram_para_store, nram_out_r,
@@ -2718,6 +2712,8 @@ __mlu_func__ void computeLargeButterflyFirststageColumn(
     }
 
     __sync();
+    FFT_SWAP_PTR(nram_para_load_ping, nram_para_load_pong)
+    FFT_SWAP_PTR(nram_para_store_ping, nram_para_store_pong)
   }
 }
 
