@@ -88,8 +88,10 @@ __mlu_func__ void computeMutiStageOnchip(DT *input, DT *output, int *factors,
   if (__is_mpu()) {
     __memcpy_async(sram_factors, factors, FFT_MAXFACTORS * sizeof(int),
                    GDRAM2SRAM);
-    __memcpy_async(sram_twiddles, twiddles, twiddles_size * sizeof(DT),
-                   GDRAM2SRAM);
+    if (twiddles_size) {
+      __memcpy_async(sram_twiddles, twiddles, twiddles_size * sizeof(DT),
+                     GDRAM2SRAM);
+    }
     // _small_stage_count = small_factors[0];
 
     const dft_table_entry *dft_table_gdram =
@@ -148,7 +150,7 @@ __mlu_func__ void computeMutiStageOnchip(DT *input, DT *output, int *factors,
     if (_stage_count != 1) FFT_SWAP_PTR(buffer, output);
     small_factors = factors + small_factors_offset;
     if (repeat_num > 0 || taskId < remain_num) {
-      if (6000 / radix > repeat_num && 0) {
+      if (0) {
         for (int t = t_start; t < t_end; t++) {
           // MLULOG("taskId: %d, batchId: %d\n", taskId, t);
           DT *input_batch = input + t * (nfft << 1);
@@ -174,11 +176,7 @@ __mlu_func__ void computeMutiStageOnchip(DT *input, DT *output, int *factors,
     }
 
     // __sync();
-  } else {
-    stage_count = _stage_count;
-    last_stage = (stage_count == 1);
   }
-  // return;
 
   // sram_large_tw
   stage_count--;

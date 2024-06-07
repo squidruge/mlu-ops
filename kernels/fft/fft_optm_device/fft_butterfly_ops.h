@@ -110,6 +110,18 @@ struct FFT_CPX_T {
     __bang_add(Z.i, RI, IR, VL);                 \
   }
 
+#define MLU_CPX_ADD_NEG_I(Z, A, B, VL) \
+  {                                    \
+    __bang_add(Z.r, A.r, B.i, VL);     \
+    __bang_sub(Z.i, A.i, B.r, VL);     \
+  }
+
+#define MLU_CPX_ADD_I(Z, A, B, VL) \
+  {                                \
+    __bang_sub(Z.r, A.r, B.i, VL); \
+    __bang_add(Z.i, A.i, B.r, VL); \
+  }
+
 // #define TRANSPOSE_XYZ2YXZ(out, in, X, Y, Z, DT) \
 //         {
 //           FFT_SWAP_PTR(nram_out_r, nram_in_r);

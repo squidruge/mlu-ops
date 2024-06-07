@@ -163,7 +163,7 @@ __mlu_func__ void computeGenericButterflyFirststageMat(
   __bang_transpose(in_trans_r, nram_in_r, radix, butterfly_num);
   __bang_transpose(in_trans_i, nram_in_i, radix, butterfly_num);
 
-  // origin: M = radix, K = radix, N =butterfly_num
+  // origin: M = radix, K = radix, N = butterfly_num * 2
   // pad_up:
   const int para_num = butterfly_num * 2;
   // const int radix = 16;

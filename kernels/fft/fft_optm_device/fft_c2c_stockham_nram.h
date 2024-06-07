@@ -55,7 +55,11 @@ __mlu_func__ void computeLargeButterflyFirststage(
   // other-large-stage none
   // last-large-stage real array, imag array -> complex
 
-  const int max_para_ldst_num = (4096 + large_radix - 1) / large_radix;
+  // const int max_para_ldst_num = 1;
+  int max_para_ldst_num = (4096 + large_radix - 1) / large_radix;
+  max_para_ldst_num =
+      (section_num < max_para_ldst_num) ? section_num : max_para_ldst_num;
+
   const DT *small_twiddles = twiddles + tw_offset * 2;  // complex
 
   // assign nram space
@@ -511,7 +515,10 @@ __mlu_func__ void computeLargeButterflyFirststageBatchPingpong(
 
   // const int max_para_ldst_num = (5900 + large_radix - 1) / large_radix;
 
-  const unsigned int max_para_ldst_num = (7232 + large_radix - 1) / large_radix;
+  unsigned int max_para_ldst_num =
+      ((7232) / large_radix > 0) ? (7232) / large_radix : 1;
+  max_para_ldst_num =
+      (section_num < max_para_ldst_num) ? section_num : max_para_ldst_num;
 
   const DT *small_twiddles = twiddles + tw_offset * 2;  // complex
 
@@ -723,9 +730,16 @@ __mlu_func__ void computeLargeButterflyFirststageBatchPingpong(
           }
 
           switch (radix) {
+              // case 4:
+              //   computeRadix4ButterflyFirststage(
+              //       nram_out_r, nram_out_i, nram_in_r, nram_in_i,
+              //       nram_scratch, small_section_num * para_num,
+              //       small_section_num * para_num, 1, dir);
+              //   break;
+
             default:
               MLULOG("computeGenericButterflyFirststageMat: %d.\n", radix);
-              computeGenericButterflyFirststageMat(
+              computeGenericButterflyFirststageMat_v1(
                   nram_out_r, nram_out_i, nram_in_r,
                   nram_in_r + large_radix * para_num, nram_scratch,
                   nram_dftmtx[0], small_section_num * para_num,
@@ -745,7 +759,9 @@ __mlu_func__ void computeLargeButterflyFirststageBatchPingpong(
               //  [2, para_ldst_num, large_radix] -> [para_ldst_num,
               //  large_radix, 2]
               // DT* nram_transpose_store = nram_in_r;
-
+              if (nram_out_r == nram_para_store_pong) {
+                FFT_SWAP_PTR(nram_para_load_pong, nram_para_store_pong)
+              }
               __bang_transpose(nram_para_store_pong, nram_out_r, 2,
                                max_para_ldst_num * large_radix);
             } else {

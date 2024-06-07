@@ -513,6 +513,38 @@ mluOpStatus_t MLUOP_WIN_API fftFactor(const int _n, int *facbuf,
     // }
 
     switch (_n) {
+      case 9:
+        if (n % 3 == 0) {
+          r = 3;
+        } else if ((n % 2) == 0) {
+          r = 2;
+        }
+        break;
+
+      case 12:
+        if (n % 4 == 0) {
+          r = 4;
+        } else if ((n % 3) == 0) {
+          r = 3;
+        }
+        break;
+
+      case 16:
+        if (n % 4 == 0) {
+          r = 4;
+        } else if ((n % 2) == 0) {
+          r = 2;
+        }
+        break;
+
+      case 25:
+        if (n % 5 == 0) {
+          r = 5;
+        } else if ((n % 2) == 0) {
+          r = 2;
+        }
+        break;
+
       case 50:
         r = 50;
         break;
@@ -524,8 +556,8 @@ mluOpStatus_t MLUOP_WIN_API fftFactor(const int _n, int *facbuf,
       //   }
       //   break;
       case 64:
-        if (n % 64 == 0) {
-          r = 64;
+        if (n % 8 == 0) {
+          r = 8;
         } else if ((n % 8) == 0) {
           r = 8;
         }
@@ -653,6 +685,16 @@ mluOpStatus_t MLUOP_WIN_API fftFactor(const int _n, int *facbuf,
         }
         break;
 
+      case 7000:
+        if (n % 50 == 0) {
+          r = 50;
+        } else if ((n % 14) == 0) {
+          r = 14;
+        } else if ((n % 10) == 0) {
+          r = 10;
+        }
+        break;
+
       default:
         if (_n <= 40) {
           r = _n;
@@ -762,24 +804,28 @@ mluOpStatus_t MLUOP_WIN_API fftTwoStepFactor(const int _n, int *facbuf) {
         }
         break;
 
-      // case 6000:
-      //   r = 6000;
-      //   break;
       case 6000:
-        if (n % 300 == 0) {
-          r = 300;
-        } else if ((n % 20) == 0) {
-          r = 20;
-        }
+        r = 6000;
         break;
+        // case 6000:
+        //   if (n % 300 == 0) {
+        //     r = 300;
+        //   } else if ((n % 20) == 0) {
+        //     r = 20;
+        //   }
+        //   break;
 
       case 7000:
-        if (n % 280 == 0) {
-          r = 280;
-        } else if ((n % 25) == 0) {
-          r = 25;
-        }
+        r = 7000;
         break;
+
+        // case 7000:
+        //   if (n % 280 == 0) {
+        //     r = 280;
+        //   } else if ((n % 25) == 0) {
+        //     r = 25;
+        //   }
+        //   break;
 
       case 8000:
         if (n % 160 == 0) {
@@ -848,7 +894,7 @@ mluOpStatus_t MLUOP_WIN_API fftTwoStepFactor(const int _n, int *facbuf) {
         break;
 
       default:
-        if (_n <= 40) {
+        if (_n <= 70) {
           r = _n;
         }
         break;

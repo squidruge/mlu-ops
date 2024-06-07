@@ -201,6 +201,73 @@ __mlu_func__ void computeRadix3ButterflyLaststage(
 }
 
 template <typename DT>
+__mlu_func__ void computeRadix4ButterflyFirststage(
+    DT *nram_out_r, DT *nram_out_i, DT *nram_in_r, DT *nram_in_i,
+    DT *nram_scratch, int section_num, int butterfly_num, int in_stride,
+    int dir) {
+  // outplace(nram)
+
+  // const int sign = (dir == FFT_FORWARD) ? 1 : -1;
+
+  FFT_CPX_T<DT> scratch01[2];
+  int nram_scratch_offset = 0;
+  for (int i = 0; i < 2; i++) {
+    scratch01[i].r = &nram_scratch[nram_scratch_offset];
+    nram_scratch_offset += butterfly_num;
+    scratch01[i].i = &nram_scratch[nram_scratch_offset];
+    nram_scratch_offset += butterfly_num;
+  }
+
+  FFT_CPX_T<DT> scratch1[2];
+
+  for (int i = 0; i < 2; i++) {
+    scratch1[i].r = &nram_scratch[nram_scratch_offset];
+    nram_scratch_offset += butterfly_num;
+    scratch1[i].i = &nram_scratch[nram_scratch_offset];
+    nram_scratch_offset += butterfly_num;
+  }
+
+  FFT_CPX_T<DT> Fin[4];
+  int nram_in_offset = 0;
+  for (int i = 0; i < 4; i++) {
+    Fin[i].r = &nram_in_r[nram_in_offset];
+    Fin[i].i = &nram_in_i[nram_in_offset];
+    nram_in_offset += butterfly_num;
+  }
+
+  FFT_CPX_T<DT> Fout[4];
+
+  // seperate the space for: Fout[i].r  Fout[i].i
+  for (int i = 0; i < 4; i++) {
+    Fout[i].r = &nram_scratch[nram_scratch_offset];
+    Fout[i].i = &nram_scratch[nram_scratch_offset + butterfly_num * 4];
+    nram_scratch_offset += butterfly_num;
+  }
+  nram_scratch_offset += (butterfly_num * 4);
+
+  MLU_CPX_ADD(scratch01[0], Fin[0], Fin[2], butterfly_num);
+  MLU_CPX_SUB(scratch01[1], Fin[0], Fin[2], butterfly_num);
+
+  MLU_CPX_ADD(scratch1[0], Fin[1], Fin[3], butterfly_num);
+  MLU_CPX_SUB(scratch1[1], Fin[1], Fin[3], butterfly_num);
+
+  // 1
+  // 1/3
+  MLU_CPX_ADD_NEG_I(Fout[1], scratch01[1], scratch1[1], butterfly_num);
+  MLU_CPX_ADD_I(Fout[3], scratch01[1], scratch1[1], butterfly_num);
+
+  // 0
+  // 0/2
+  MLU_CPX_ADD(Fout[0], scratch01[0], scratch1[0], butterfly_num);
+  MLU_CPX_SUB(Fout[2], scratch01[0], scratch1[0], butterfly_num);
+
+  // output
+
+  __bang_transpose(nram_out_r, Fout[0].r, 4, butterfly_num);
+  __bang_transpose(nram_out_i, Fout[0].i, 4, butterfly_num);
+}
+
+template <typename DT>
 __mlu_func__ void computeRadix9ButterflyFirststage(
     DT *nram_out_r, DT *nram_out_i, DT *nram_in_r, DT *nram_in_i,
     DT *nram_scratch, int section_num, int butterfly_num, int in_stride,
