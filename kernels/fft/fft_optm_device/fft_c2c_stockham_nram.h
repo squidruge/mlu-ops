@@ -739,7 +739,7 @@ __mlu_func__ void computeLargeButterflyFirststageBatchPingpong(
 
             default:
               MLULOG("computeGenericButterflyFirststageMat: %d.\n", radix);
-              computeGenericButterflyFirststageMat_v1(
+              computeGenericButterflyFirststageMat(
                   nram_out_r, nram_out_i, nram_in_r,
                   nram_in_r + large_radix * para_num, nram_scratch,
                   nram_dftmtx[0], small_section_num * para_num,

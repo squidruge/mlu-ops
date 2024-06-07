@@ -186,20 +186,23 @@ __mlu_func__ void computeGenericButterflyFirststageMat(
   // wram_scratch_offset += (align_N * align_K);
 
   // overlap
-  // !!! align_N * align_K * 2
+  // !!! align_M * align_N * 2
   DT *RR_RI_trans = &nram_scratch[nram_scratch_offset];
   DT *IR_II_trans = &nram_scratch[nram_scratch_offset + align_N * align_M];
 
+  // !!! align_N * align_K
   DT *in_align = &nram_scratch[nram_scratch_offset];
 
-  nram_scratch_offset += (align_N * align_M * 2);
+  nram_scratch_offset +=
+      ((align_M * 2 > align_K) ? (align_M * 2) : align_K) * align_N;
 
   // overlap
   DT *in_align2 = &nram_scratch[nram_scratch_offset];
 
   DT *RR_RI = &nram_scratch[nram_scratch_offset];
   DT *IR_II = &nram_scratch[nram_scratch_offset + align_M * align_N];
-  nram_scratch_offset += (align_M * 2 * align_N);
+  nram_scratch_offset +=
+      ((align_M * 2 > align_K) ? (align_M * 2) : align_K) * align_N;
 
   // overlap
   // FFT_CPX_T<DT> in_align2 = {
@@ -260,6 +263,7 @@ __mlu_func__ void computeGenericButterflyFirststageMat(
   // DT *RI_trans = &RR_RI_trans[butterfly_num * radix];
   // DT *IR_trans = &IR_II_trans[0];
   // DT *II_trans = &IR_II_trans[butterfly_num * radix];
+
   __bang_sub(nram_out_r, RR_RI_trans, &IR_II_trans[butterfly_num * radix],
              radix * butterfly_num);
   __bang_add(nram_out_i, &RR_RI_trans[butterfly_num * radix], &IR_II_trans[0],
