@@ -307,4 +307,10 @@ mluOpStatus_t MLUOP_WIN_API kernelC2CFFTDFTMatrix(
     cnrtDim3_t k_dim, cnrtFunctionType_t k_type, cnrtQueue_t queue,
     mluOpFFTPlan_t fft_plan, mluOpDataType_t in_r_dtype, int n);
 
+mluOpStatus_t MLUOP_WIN_API searchLargeRadix(mluOpFFTPlan_t fft_plan,
+                                             int &large_radix, int *facbuf,
+                                             int large_stage_id, int _n);
+mluOpStatus_t MLUOP_WIN_API calParallelNumLowBound(mluOpFFTPlan_t fft_plan,
+                                                   int *facbuf, int stage,
+                                                   int &parallel_num_lb);
 #endif  // KERNELS_FFT_FFT_H_

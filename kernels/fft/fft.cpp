@@ -278,7 +278,6 @@ mluOpStatus_t MLUOP_WIN_API fftGenerateDftMatrixKernel(DT *dft_matrix,
         // dft_matrix[align_K * k + j], dft_matrix[align_K * k + j + align_K *
         // radix]);
       }
-
     }  // radix
     // printf("\n");
   }  // butterfly_num
@@ -703,8 +702,14 @@ mluOpStatus_t MLUOP_WIN_API fftFactor(const int _n, int *facbuf,
         break;
 
       default:
-        if (_n <= 64) {
-          r = _n;
+        // if (_n <= 64) {
+        //   r = _n;
+        // }
+        for (int cur_r = 64; cur_r > 1; cur_r--) {
+          if (n % cur_r == 0) {
+            r = cur_r;
+            break;
+          }
         }
         break;
     }
@@ -902,8 +907,11 @@ mluOpStatus_t MLUOP_WIN_API fftTwoStepFactor(mluOpFFTPlan_t fft_plan,
         break;
 
       default:
-        if (_n <= 70) {
-          r = _n;
+        if (n <= 64) {
+          r = n;
+        } else {
+          int *cur_facbuf = &facbuf[small_factors_offset];
+          searchLargeRadix(fft_plan, r, cur_facbuf, stage_num + 1, n);
         }
         break;
     }
@@ -982,6 +990,182 @@ mluOpStatus_t MLUOP_WIN_API fftTwoStepFactor(mluOpFFTPlan_t fft_plan,
     // __FILE__: %s, __LINE__: %d. \n", __FILE__, __LINE__); exit(1);
   }
 
+  return MLUOP_STATUS_SUCCESS;
+}
+
+mluOpStatus_t MLUOP_WIN_API searchLargeRadix(mluOpFFTPlan_t fft_plan,
+                                             int &large_radix, int *facbuf,
+                                             int large_stage_id, int _n) {
+  large_radix = 1;
+
+  int cur_stage_num = 0;
+  int section_num = 0;
+  int stage_num = 0, out_stride = 1;
+  int n = _n;
+  int small_radix;
+  while (n > 1) {
+    for (small_radix = 64; small_radix > 1; small_radix--) {
+      if (n % small_radix == 0) {
+        section_num = n / small_radix;
+        cur_stage_num = stage_num + 1;
+
+        facbuf[4 * cur_stage_num + 0] = small_radix;
+        facbuf[4 * cur_stage_num + 1] = section_num;
+        facbuf[4 * cur_stage_num + 2] = out_stride;
+
+        facbuf[0] = cur_stage_num;
+        facbuf[1] = large_radix;
+        int parallel_num_lb = 0;
+        calParallelNumLowBound(fft_plan, facbuf, large_stage_id,
+                               parallel_num_lb);
+        if (parallel_num_lb > 0) {
+          out_stride *= small_radix;
+          large_radix *= small_radix;
+          stage_num++;
+          n /= small_radix;
+        }
+      }
+    }
+
+    if (small_radix == 1) {
+      break;
+    }
+  }
+
+  return MLUOP_STATUS_SUCCESS;
+}
+
+// low bound
+mluOpStatus_t MLUOP_WIN_API calParallelNumLowBound(mluOpFFTPlan_t fft_plan,
+                                                   int *facbuf, int stage,
+                                                   int &parallel_num_lb) {
+  const size_t nram_space_size =
+      (MAX_NRAM_SIZE + REM_FOR_STACK - 32 * 1024 - FFT_MAXFACTORS * 4);
+  size_t workspace_size = 0;
+  size_t reservespace_size = 0;
+  const int max_radix = 64;
+  size_t TYPE_SIZE = 0;
+  parallel_num_lb = 0;
+  int nram_space_need = 0;
+  int nram_space_need_tw = 0;
+  int nram_space_need_dftmtx = (stage == 1)
+                                   ? max_radix * max_radix * 2 * 2
+                                   : max_radix * max_radix * 2;  // complex
+  // int nram_space_need_dftmtx_align = 0;
+  int space_need_matmul = 0;
+  int space_need_matmul_tmp = 0;
+  int small_stage_num = facbuf[0];
+  int _n = facbuf[1];
+  int radix = 0;
+  int section_num = 0;
+  int butterfly_num = 0;
+  int para_num = 0;
+  int K_num = 0;
+  int align_M = 0;
+  int align_K = 0;
+  int align_N = 0;
+
+  mluOpStatus_t status;
+
+  switch (fft_plan->fft_type) {
+    // r2c
+    case CNFFT_HALF2COMPLEX_HALF:
+    case CNFFT_FLOAT2COMPLEX_FLOAT: {
+      parallel_num_lb = 1;
+    }; break;
+    case CNFFT_COMPLEX_HALF2HALF:
+    case CNFFT_COMPLEX_FLOAT2FLOAT: {
+      parallel_num_lb = 1;
+    }; break;
+    case CNFFT_COMPLEX_HALF2COMPLEX_HALF: {
+      parallel_num_lb = 1;
+    }; break;
+    case CNFFT_COMPLEX_FLOAT2COMPLEX_FLOAT: {
+      TYPE_SIZE = 4;
+      K_num = 64 / TYPE_SIZE;
+
+      if (stage == 1) {
+        nram_space_need = 0;
+        // nram_para_load_ping
+        nram_space_need += _n * 2 * TYPE_SIZE;  // complex
+        // nram_para_load_pong
+        nram_space_need += _n * 2 * TYPE_SIZE;  // complex
+        // nram_para_store_ping
+        nram_space_need += _n * 2 * TYPE_SIZE;  // complex
+        // nram_para_store_pong
+        nram_space_need += _n * 2 * TYPE_SIZE;  // complex
+
+      } else {
+        nram_space_need = 0;
+        // nram_para_load_ping
+        nram_space_need += _n * 2 * TYPE_SIZE;  // complex
+        // nram_para_load_pong
+        nram_space_need += _n * 2 * TYPE_SIZE;  // complex
+        // nram_para_store_ping
+        nram_space_need += _n * 2 * TYPE_SIZE;  // complex
+        // nram_para_store_pong
+        nram_space_need += _n * 2 * TYPE_SIZE;  // complex
+        // nram_para_load_tw
+        nram_space_need += _n * 2 * TYPE_SIZE;  // complex
+        // // _nram_tw
+        // nram_space_need += _n * 2 * TYPE_SIZE;  // complex
+      }
+
+      space_need_matmul = 0;
+      if (stage != 1) {
+        space_need_matmul = _n * 4 * TYPE_SIZE;
+      }
+      for (int small_stage_id = 1; small_stage_id <= small_stage_num;
+           small_stage_id++) {
+        radix = facbuf[small_stage_id * 4 + 0];
+        section_num = facbuf[small_stage_id * 4 + 1];
+        butterfly_num = facbuf[small_stage_id * 4 + 2];
+        if (small_stage_id == 1) {
+          para_num = section_num * 2;
+          align_M = radix;
+          align_K = K_num * ((radix + K_num - 1) / K_num);
+          align_N = para_num;
+          // align_N = 64 * ((para_num + 64 - 1) / 64);
+
+          space_need_matmul_tmp =
+              ((align_M * 2 > align_K) ? (align_M * 2) : align_K) * align_N *
+              2 * TYPE_SIZE;
+          // nram_space_need_dftmtx_align =
+          //     (align_K != radix) ? (align_M * align_K * 2 * TYPE_SIZE) : 0;
+        } else {
+          para_num = butterfly_num * section_num;
+          align_M = radix;
+          align_K = K_num * ((radix + K_num - 1) / K_num);
+          // align_N = 64 * ((para_num + 64 - 1) / 64);
+          align_N = para_num;
+
+          space_need_matmul_tmp = 0;
+          space_need_matmul_tmp += (align_N * align_K * 2 * TYPE_SIZE);
+          space_need_matmul_tmp += (align_N * align_K * 2 * TYPE_SIZE);
+          space_need_matmul_tmp += (para_num * radix * 2 * TYPE_SIZE);
+          space_need_matmul_tmp += (align_K * 4 * align_N * TYPE_SIZE);
+          // nram_space_need_dftmtx_align =
+          //     (align_K != radix) ? (align_M * align_K * 2 * TYPE_SIZE) : 0;
+        }
+
+        // nram_space_need_dftmtx_align =
+        //     (align_K != radix) ? (align_M * 64 * 2 * TYPE_SIZE) : 0;
+        space_need_matmul = (space_need_matmul > space_need_matmul_tmp)
+                                ? space_need_matmul
+                                : space_need_matmul_tmp;
+      }
+
+      // nram_space_need += space_need_matmul;
+      nram_space_need_tw = _n * 2 * TYPE_SIZE;  // complex
+      const size_t nram_space_remain =
+          (nram_space_size - nram_space_need_tw - nram_space_need_dftmtx);
+      parallel_num_lb =
+          nram_space_remain / (nram_space_need + space_need_matmul);
+
+    }; break;
+  }
+
+  // return status;
   return MLUOP_STATUS_SUCCESS;
 }
 
