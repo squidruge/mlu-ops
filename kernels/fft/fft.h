@@ -198,6 +198,7 @@ struct mluOpFFTStruct {
                 // Cooley-Tukey algorithm
   int L_sub;    // The size that can be put down on NRAM: L_sub * 2^m, only used
                 // by  Stockham algorithm
+  int prime;
   bool is_input_contiguous;
   bool is_output_contiguous;
   size_t reservespace_size;

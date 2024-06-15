@@ -1161,7 +1161,6 @@ mluOpStatus_t MLUOP_WIN_API calParallelNumLowBound(mluOpFFTPlan_t fft_plan,
           (nram_space_size - nram_space_need_tw - nram_space_need_dftmtx);
       parallel_num_lb =
           nram_space_remain / (nram_space_need + space_need_matmul);
-
     }; break;
   }
 
@@ -1297,6 +1296,7 @@ mluOpStatus_t MLUOP_WIN_API setMaxParallelNum(mluOpFFTPlan_t fft_plan,
           nram_space_remain / (nram_space_need + space_need_matmul);
 
       // _nram_tw
+      // calParallelNumLowBound(fft_plan, facbuf, stage, max_parallel_num);
 
       while (1) {
         space_need_matmul = 0;
@@ -1918,10 +1918,33 @@ mluOpStatus_t MLUOP_WIN_API mluOpMakeFFTPlanMany(
     case CNFFT_COMPLEX_FLOAT2COMPLEX_FLOAT: {
       if (rank == 1) {
         VLOG(5) << "into make FFT1d Policy";
-        // status = makeFFT1dPolicy(handle, fft_plan);
+        int n0 = n[0];
+        // int prime = 0;
+        fft_plan->prime = 0;
+        int r = 0;
+        while (n0 > 1) {
+          for (r = 64; r > 1; r--) {
+            if (n0 % r == 0) {
+              n0 /= r;
+              break;
+            }
+          }
+          if (r == 1) {
+            fft_plan->prime = n0;
+            break;
+          }
+        }
+
+        if (fft_plan->prime == 0) {
+          status = mluOpMakeFFTPlanC2C1D(handle, fft_plan, input_desc,
+                                         output_desc, rank, n, direction);
+
+        } else {
+          status = makeFFT1dPolicy(handle, fft_plan);
+        }
+
         // C2C 1D
-        status = mluOpMakeFFTPlanC2C1D(handle, fft_plan, input_desc,
-                                       output_desc, rank, n, direction);
+
       } else if (rank == 2) {
         VLOG(5) << "into make FFT2d Policy";
         // status = makeFFT1dPolicy(handle, fft_plan);
