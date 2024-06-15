@@ -28,33 +28,12 @@ struct FFT_CPX_T {
   DT *i;
 };
 
-#define fft_swap_ptr_macro(X, Y)         \
-  {                                      \
-    X = ((intptr_t)(X) ^ (intptr_t)(Y)); \
-    Y = ((intptr_t)(X) ^ (intptr_t)(Y)); \
-    X = ((intptr_t)(X) ^ (intptr_t)(Y)); \
-  }
-
 #define FFT_SWAP_PTR(X, Y)                     \
   {                                            \
     X = (DT *)((intptr_t)(X) ^ (intptr_t)(Y)); \
     Y = (DT *)((intptr_t)(X) ^ (intptr_t)(Y)); \
     X = (DT *)((intptr_t)(X) ^ (intptr_t)(Y)); \
   }
-
-#define FFT_SWAP_PTR_T(X, Y, T)               \
-  {                                           \
-    X = (T *)((intptr_t)(X) ^ (intptr_t)(Y)); \
-    Y = (T *)((intptr_t)(X) ^ (intptr_t)(Y)); \
-    X = (T *)((intptr_t)(X) ^ (intptr_t)(Y)); \
-  }
-
-// #define FFT_SWAP_PTR(A, B) \
-//   {                        \
-//     DT *tmp = A;           \
-//     A = B;                 \
-//     B = tmp;               \
-//   }
 
 #define MLU_CPX_ADD(Z, A, B, VL)   \
   {                                \
@@ -67,12 +46,6 @@ struct FFT_CPX_T {
     __bang_sub(Z.r, A.r, B.r, VL); \
     __bang_sub(Z.i, A.i, B.i, VL); \
   }
-
-// #define MLU_CPX_MLA_INPLACE(OUT, IN, TWI, VL) \
-//     { \
-//       __bang_fusion(FUSION_FMA, OUT.r, OUT.r, TWI, IN.r, VL, VL);\
-//       __bang_fusion(FUSION_FMA, OUT.i, OUT.i, TWI, IN.i, VL, VL);\
-//     }
 
 #define MLU_CPX_MLA_INPLACE(OUT, IN, TWI, TEMP, VL) \
   {                                                 \

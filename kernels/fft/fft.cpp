@@ -548,20 +548,13 @@ mluOpStatus_t MLUOP_WIN_API fftFactor(const int _n, int *facbuf,
       case 50:
         r = 50;
         break;
-      // case 50:
-      //   if (n % 10 == 0) {
-      //     r = 10;
-      //   } else if ((n % 5) == 0) {
-      //     r = 5;
-      //   }
-      //   break;
-      case 64:
-        if (n % 8 == 0) {
-          r = 8;
-        } else if ((n % 8) == 0) {
-          r = 8;
-        }
-        break;
+        // case 50:
+        //   if (n % 10 == 0) {
+        //     r = 10;
+        //   } else if ((n % 5) == 0) {
+        //     r = 5;
+        //   }
+        //   break;
 
       case 128:
         if (n % 16 == 0) {
@@ -696,7 +689,7 @@ mluOpStatus_t MLUOP_WIN_API fftFactor(const int _n, int *facbuf,
         break;
 
       default:
-        if (_n <= 40) {
+        if (_n <= 64) {
           r = _n;
         }
         break;
@@ -718,7 +711,7 @@ mluOpStatus_t MLUOP_WIN_API fftFactor(const int _n, int *facbuf,
   facbuf[0] = stage_num;
   facbuf[1] = _n;
   facbuf[2] = 0;  // tw_offset
-  facbuf[3] = 0;
+  // facbuf[3] = 0;  // max_parallel_num has been set
 
   if (stage_num > 21) {
     // Since nfft is openfft_int32_t, stage_num can never be greater than 21,
@@ -731,7 +724,8 @@ mluOpStatus_t MLUOP_WIN_API fftFactor(const int _n, int *facbuf,
   return MLUOP_STATUS_SUCCESS;
 }
 
-mluOpStatus_t MLUOP_WIN_API fftTwoStepFactor(const int _n, int *facbuf) {
+mluOpStatus_t MLUOP_WIN_API fftTwoStepFactor(mluOpFFTPlan_t fft_plan,
+                                             const int _n, int *facbuf) {
   int n = _n;
   // if ((facbuf == NULL) || (n <= 0))
   // {
@@ -945,8 +939,10 @@ mluOpStatus_t MLUOP_WIN_API fftTwoStepFactor(const int _n, int *facbuf) {
     facbuf[5 * stage_num + 2] = out_stride;
     facbuf[5 * stage_num + 3] = in_stride;
     facbuf[5 * stage_num + 4] = small_factors_offset;
-
+    int *cur_facbuf = &facbuf[small_factors_offset];
     fftFactor(r, facbuf, small_factors_offset);
+    setMaxParallelNum(fft_plan, cur_facbuf, stage_num);
+
     // facbuf[6*stage_num+4] = small_stage_count;
     // facbuf[6*stage_num+5] = small_factors_offset;
 
@@ -973,6 +969,192 @@ mluOpStatus_t MLUOP_WIN_API fftTwoStepFactor(const int _n, int *facbuf) {
   }
 
   return MLUOP_STATUS_SUCCESS;
+}
+
+mluOpStatus_t MLUOP_WIN_API setMaxParallelNum(mluOpFFTPlan_t fft_plan,
+                                              int *facbuf, int stage) {
+  const std::string make_plan_api = "[setMaxParallelNum]";
+
+  const size_t nram_space_size =
+      (MAX_NRAM_SIZE + REM_FOR_STACK - 32 * 1024 - FFT_MAXFACTORS * 4);
+  size_t workspace_size = 0;
+  size_t reservespace_size = 0;
+  int max_radix = 0;
+  size_t TYPE_SIZE = 0;
+  int max_parallel_num = 0;
+  int nram_space_need = 0;
+  int nram_space_need_tw = 0;
+  int nram_space_need_dftmtx = (stage == 1)
+                                   ? max_radix * max_radix * 2 * 2
+                                   : max_radix * max_radix * 2;  // complex
+  int nram_space_need_dftmtx_align = 0;
+  int space_need_matmul = 0;
+  int space_need_matmul_tmp = 0;
+  int small_stage_num = facbuf[0];
+  int _n = facbuf[1];
+  int radix = 0;
+  int section_num = 0;
+  int butterfly_num = 0;
+  int para_num = 0;
+  int K_num = 0;
+  int align_M = 0;
+  int align_K = 0;
+  int align_N = 0;
+
+  mluOpStatus_t status;
+
+  switch (fft_plan->fft_type) {
+    // r2c
+    case CNFFT_HALF2COMPLEX_HALF:
+    case CNFFT_FLOAT2COMPLEX_FLOAT: {
+      max_parallel_num = 1;
+    }; break;
+    case CNFFT_COMPLEX_HALF2HALF:
+    case CNFFT_COMPLEX_FLOAT2FLOAT: {
+      max_parallel_num = 1;
+    }; break;
+    case CNFFT_COMPLEX_HALF2COMPLEX_HALF: {
+      max_parallel_num = 1;
+    }; break;
+    case CNFFT_COMPLEX_FLOAT2COMPLEX_FLOAT: {
+      TYPE_SIZE = 4;
+      max_radix = 64;
+
+      if (stage == 1) {
+        nram_space_need = 0;
+        // nram_para_load_ping
+        nram_space_need += _n * 2 * TYPE_SIZE;  // complex
+        // nram_para_load_pong
+        nram_space_need += _n * 2 * TYPE_SIZE;  // complex
+        // nram_para_store_ping
+        nram_space_need += _n * 2 * TYPE_SIZE;  // complex
+        // nram_para_store_pong
+        nram_space_need += _n * 2 * TYPE_SIZE;  // complex
+
+      } else {
+        nram_space_need = 0;
+        // nram_para_load_ping
+        nram_space_need += _n * 2 * TYPE_SIZE;  // complex
+        // nram_para_load_pong
+        nram_space_need += _n * 2 * TYPE_SIZE;  // complex
+        // nram_para_store_ping
+        nram_space_need += _n * 2 * TYPE_SIZE;  // complex
+        // nram_para_store_pong
+        nram_space_need += _n * 2 * TYPE_SIZE;  // complex
+        // _nram_tw
+        nram_space_need += _n * 2 * TYPE_SIZE;  // complex
+      }
+
+      space_need_matmul = 0;
+
+      for (int small_stage_id = 1; small_stage_id <= small_stage_num;
+           small_stage_id++) {
+        radix = facbuf[small_stage_id * 4 + 0];
+        section_num = facbuf[small_stage_id * 4 + 1];
+        butterfly_num = facbuf[small_stage_id * 4 + 2];
+        if (small_stage_id == 1) {
+          para_num = section_num * 2;
+          align_M = radix;
+          K_num = 64 / TYPE_SIZE;
+          align_K = K_num * ((radix + K_num - 1) / K_num);
+          align_N = para_num;
+          // align_N = 64 * ((para_num + 64 - 1) / 64);
+
+          space_need_matmul_tmp =
+              ((align_M * 2 > align_K) ? (align_M * 2) : align_K) * align_N *
+              2 * TYPE_SIZE;
+          // nram_space_need_dftmtx_align =
+          //     (align_K != radix) ? (align_M * align_K * 2 * TYPE_SIZE) : 0;
+        } else {
+          para_num = butterfly_num * section_num;
+          align_M = radix;
+          K_num = 64 / TYPE_SIZE;
+          align_K = K_num * ((radix + K_num - 1) / K_num);
+          // align_N = 64 * ((para_num + 64 - 1) / 64);
+          align_N = para_num;
+
+          space_need_matmul_tmp = 0;
+          space_need_matmul_tmp += (align_N * align_K * 2 * TYPE_SIZE);
+          space_need_matmul_tmp += (align_N * align_K * 2 * TYPE_SIZE);
+          space_need_matmul_tmp += (para_num * radix * 2 * TYPE_SIZE);
+          space_need_matmul_tmp += (align_K * 4 * align_N * TYPE_SIZE);
+          // nram_space_need_dftmtx_align =
+          //     (align_K != radix) ? (align_M * align_K * 2 * TYPE_SIZE) : 0;
+        }
+
+        nram_space_need_dftmtx_align =
+            (align_K != radix) ? (align_M * 64 * 2 * TYPE_SIZE) : 0;
+        space_need_matmul = (space_need_matmul > space_need_matmul_tmp)
+                                ? space_need_matmul
+                                : space_need_matmul_tmp;
+      }
+
+      // nram_space_need += space_need_matmul;
+      nram_space_need_tw = _n * 2 * TYPE_SIZE;  // complex
+      size_t nram_space_remain =
+          (nram_space_size - nram_space_need_tw - nram_space_need_dftmtx -
+           nram_space_need_dftmtx_align);
+      max_parallel_num =
+          nram_space_remain / (nram_space_need + space_need_matmul);
+
+      // _nram_tw
+
+      while (1) {
+        space_need_matmul = 0;
+
+        for (int small_stage_id = 1; small_stage_id <= small_stage_num;
+             small_stage_id++) {
+          radix = facbuf[small_stage_id * 4 + 0];
+          section_num = facbuf[small_stage_id * 4 + 1];
+          butterfly_num = facbuf[small_stage_id * 4 + 2];
+          if (small_stage_id == 1) {
+            para_num = section_num * 2 * max_parallel_num;
+            align_M = radix;
+            K_num = 64 / TYPE_SIZE;
+            align_K = K_num * ((radix + K_num - 1) / K_num);
+            align_N = 64 * ((para_num + 64 - 1) / 64);
+
+            space_need_matmul_tmp =
+                ((align_M * 2 > align_K) ? (align_M * 2) : align_K) * align_N *
+                2 * TYPE_SIZE;
+
+          } else {
+            para_num = butterfly_num * section_num * max_parallel_num;
+            align_M = radix;
+            K_num = 64 / TYPE_SIZE;
+            align_K = K_num * ((radix + K_num - 1) / K_num);
+            align_N = 64 * ((para_num + 64 - 1) / 64);
+
+            space_need_matmul_tmp = 0;
+            space_need_matmul_tmp += (align_N * align_K * 2 * TYPE_SIZE);
+            space_need_matmul_tmp += (align_N * align_K * 2 * TYPE_SIZE);
+            space_need_matmul_tmp += (para_num * radix * 2 * TYPE_SIZE);
+            space_need_matmul_tmp += (align_K * 4 * align_N * TYPE_SIZE);
+          }
+
+          space_need_matmul = (space_need_matmul > space_need_matmul_tmp)
+                                  ? space_need_matmul
+                                  : space_need_matmul_tmp;
+        }
+
+        if (nram_space_remain >
+            (nram_space_need * max_parallel_num + space_need_matmul)) {
+          break;
+        } else {
+          max_parallel_num--;
+        }
+      }
+
+    }; break;
+  }
+
+  if (max_parallel_num <= 0) {
+    status = MLUOP_STATUS_ALLOC_FAILED;
+  } else {
+    facbuf[3] = max_parallel_num;
+    status = MLUOP_STATUS_SUCCESS;
+  }
+  return status;
 }
 
 mluOpStatus_t MLUOP_WIN_API
@@ -1111,7 +1293,7 @@ mluOpStatus_t MLUOP_WIN_API mluOpMakeFFTPlanC2C1D(
   // std::cout<< "mluOpAllocateC2C1D"<<std::endl;
   mluOpAllocateC2C1D(handle, fft_plan, input_desc, output_desc, n[0]);
   // std::cout<< "mluOpAllocateC2C1D"<<std::endl;
-  fftTwoStepFactor(n[0], fft_plan->factors);
+  fftTwoStepFactor(fft_plan, n[0], fft_plan->factors);
   // result = openfft_factor(nfft, st->factors);
   // if (result == OPENFFT_ERR)
   // {
@@ -1168,8 +1350,8 @@ mluOpStatus_t MLUOP_WIN_API mluOpMakeFFTPlanC2C2D(
   // std::cout<< "mluOpAllocateC2C1D"<<std::endl;
   mluOpAllocateC2C2D(handle, fft_plan, input_desc, output_desc, n[0], n[1]);
   // std::cout<< "mluOpAllocateC2C1D"<<std::endl;
-  fftTwoStepFactor(n[1], fft_plan->factors);
-  fftTwoStepFactor(n[0], fft_plan->factors_2d);
+  fftTwoStepFactor(fft_plan, n[1], fft_plan->factors);
+  fftTwoStepFactor(fft_plan, n[0], fft_plan->factors_2d);
   // result = openfft_factor(nfft, st->factors);
   // if (result == OPENFFT_ERR)
   // {
@@ -1300,10 +1482,11 @@ mluOpStatus_t MLUOP_WIN_API mluOpMakeFFTPlanMany(
                    ": batch size mismatch.");
   }
 
-  if (rank == 2) {
-    fft_plan->batch_2d = input_desc->dims[2];
-    fft_plan->batch = input_desc->dims[1];
-  }
+  // if (rank == 2) {
+  //   fft_plan->batch_2d = input_desc->dims[2];
+  //   fft_plan->batch = input_desc->dims[1];
+  // }
+
   // The FFT Struct is designed after cufftXtMakePlanMany.
   // An element of coordinates [z, y, x] in signal number b in the batch will
   // be associated with the following addresses in the memory

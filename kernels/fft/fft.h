@@ -192,13 +192,12 @@ struct mluOpFFTStruct {
   int odist;    // distance between the first element of two consecutive signals
                 // in a batch of the output data
   int batch;    // batch size for this transform
-  int batch_2d;  // batch size for this transform
-  int L;         // n = L * 2^m, L size for this transform
-  int m;         // n = L * 2^m, m size for this transform
-  int s;         // The size that can be put down on NRAM: L * 2^s, only used by
-                 // Cooley-Tukey algorithm
-  int L_sub;  // The size that can be put down on NRAM: L_sub * 2^m, only used
-              // by  Stockham algorithm
+  int L;        // n = L * 2^m, L size for this transform
+  int m;        // n = L * 2^m, m size for this transform
+  int s;        // The size that can be put down on NRAM: L * 2^s, only used by
+                // Cooley-Tukey algorithm
+  int L_sub;    // The size that can be put down on NRAM: L_sub * 2^m, only used
+                // by  Stockham algorithm
   bool is_input_contiguous;
   bool is_output_contiguous;
   size_t reservespace_size;
@@ -284,19 +283,23 @@ kernelFFTStockham(cnrtDim3_t k_dim, cnrtFunctionType_t k_type,
                   cnrtQueue_t queue, mluOpFFTPlan_t fft_plan, int direction,
                   const float scale_factor, FFTFlag flag);
 
+mluOpStatus_t MLUOP_WIN_API setMaxParallelNum(mluOpFFTPlan_t fft_plan,
+                                              int *facbuf, int stage);
+
+mluOpStatus_t MLUOP_WIN_API fftTwoStepFactor(mluOpFFTPlan_t fft_plan,
+                                             const int _n, int *facbuf);
+
 mluOpStatus_t MLUOP_WIN_API kernelFFTButterfly(cnrtDim3_t k_dim,
                                                cnrtFunctionType_t k_type,
                                                cnrtQueue_t queue,
                                                mluOpFFTPlan_t fft_plan,
                                                int direction, FFTFlag flag);
 
-mluOpStatus_t MLUOP_WIN_API kernelFFTButterfly2d(cnrtDim3_t k_dim,
-                                                 cnrtFunctionType_t k_type,
-                                                 cnrtQueue_t queue,
-                                                 mluOpFFTPlan_t fft_plan,
-                                                 int direction, FFTFlag flag);
+mluOpStatus_t MLUOP_WIN_API kernelFFT2dButterflyColumn(
+    cnrtDim3_t k_dim, cnrtFunctionType_t k_type, cnrtQueue_t queue,
+    mluOpFFTPlan_t fft_plan, int direction, FFTFlag flag);
 
-mluOpStatus_t MLUOP_WIN_API kernelFFTButterflyColumn(
+mluOpStatus_t MLUOP_WIN_API kernelFFT2dButterflyRow(
     cnrtDim3_t k_dim, cnrtFunctionType_t k_type, cnrtQueue_t queue,
     mluOpFFTPlan_t fft_plan, int direction, FFTFlag flag);
 

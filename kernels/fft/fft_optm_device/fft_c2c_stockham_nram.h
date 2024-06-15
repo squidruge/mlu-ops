@@ -493,12 +493,14 @@ __mlu_func__ void computeLargeButterflyFirststageBatchPingpong(
   int radix, small_in_stride, small_stage_count, large_radix,
       _small_stage_count;
   int small_section_num, small_butterfly_num, value_mul;
-  int tw_offset;
+  int tw_offset, max_para_ldst_num;
 
   _small_stage_count = small_factors[0];
   large_radix = small_factors[1];
   tw_offset = small_factors[2];
 
+  max_para_ldst_num =
+      (section_num < small_factors[3]) ? section_num : small_factors[3];
   // load compute store
   // (0)                              load 0 ping sync()
   // (1)              compute 0 ping  load 1 pong sync()
@@ -515,11 +517,13 @@ __mlu_func__ void computeLargeButterflyFirststageBatchPingpong(
 
   // const int max_para_ldst_num = (5900 + large_radix - 1) / large_radix;
 
-  unsigned int max_para_ldst_num =
-      ((7232) / large_radix > 0) ? (7232) / large_radix : 1;
-  max_para_ldst_num =
-      (section_num < max_para_ldst_num) ? section_num : max_para_ldst_num;
+  // unsigned int max_para_ldst_num =
+  //     ((7232) / large_radix > 0) ? (7232) / large_radix : 1;
+  // max_para_ldst_num =
+  //     (section_num < max_para_ldst_num) ? section_num : max_para_ldst_num;
 
+  // max_para_ldst_num =
+  //       ((7232) / large_radix > 0) ? (7232) / large_radix : 1;
   const DT *small_twiddles = twiddles + tw_offset * 2;  // complex
 
   // assign nram space

@@ -1750,60 +1750,19 @@ mluOpStatus_t execFFTc2c2d(mluOpHandle_t handle, mluOpFFTPlan_t fft_plan,
   std::string api = "[execFFTc2c1d]";
 
   VLOG(5) << "launch c2c fft1d";
-  // TODO(niyuming) luanch merge kernel
-  // int core_num = handle->core_num_per_cluster;
+
   mluOpStatus_t status = MLUOP_STATUS_SUCCESS;
   cnrtDim3_t k_dim;
   cnrtFunctionType_t k_type;
   policyFunc(handle, &k_dim, &k_type);
 
-#if 0
-  kernelFFTButterfly(k_dim, k_type, handle->queue, fft_plan, direction,
-                     FFT_IFFT);
-
-  // VLOG(5) << "launch mluOpTranspose for input CNFFT_FUNC_MATMUL";
-  // int padded_input_num = batch * n;
-  // const int trans_dim_num = 3;
-  // int trans_input_dims[trans_dim_num] = {fft_plan->n[0], fft_plan->n[1],
-  // COMPLEX}; int trans_output_dims[trans_dim_num] = {fft_plan->n[1],
-  // fft_plan->n[0], COMPLEX}; int trans_permute[trans_dim_num] = {1, 0, 2};
-
-  const int trans_dim_num = 2;
-  int trans_input_dims[trans_dim_num] = {fft_plan->n[0], fft_plan->n[1]};
-  int trans_output_dims[trans_dim_num] = {fft_plan->n[1], fft_plan->n[0]};
-  int trans_permute[trans_dim_num] = {1, 0};
-
-  // status = fftGetTransposeWorkspaceSize(handle, trans_workspace_size,
-  //                                       trans_dim_num, trans_input_dims,
-  //                                       trans_permute, in_r_dtype, api);
-  // fft_plan->matmul_addrs.internal_workspace_size = std::max(
-  //     fft_plan->matmul_addrs.internal_workspace_size, trans_workspace_size);
-
-  status = fftTranspose(handle, trans_dim_num, trans_input_dims,
-                        trans_output_dims, trans_permute,
-                        fft_plan->mlu_addrs.output, fft_plan->mlu_addrs.input,
-                        fft_plan->input_dtype, fft_plan->mlu_addrs.buffer_buf,
-                        fft_plan->workspace_size, api);
+  status = kernelFFT2dButterflyRow(k_dim, k_type, handle->queue, fft_plan,
+                                   direction, FFT_IFFT);
   INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
 
-  // CALL_CNNL(cnnlTranspose_v2(cnnl_handle, trans_desc, cnnl_input_desc,
-  // ori_ptr,
-  //                            cnnl_transed_input_desc, transed_ptr, workspace,
-  //                            workspace_size));
-
-  kernelFFTButterfly2d(k_dim, k_type, handle->queue, fft_plan, direction,
-                       FFT_IFFT);
-  status = fftTranspose(handle, trans_dim_num, trans_output_dims,
-                        trans_input_dims, trans_permute,
-                        fft_plan->mlu_addrs.input, fft_plan->mlu_addrs.output,
-                        fft_plan->input_dtype, fft_plan->mlu_addrs.buffer_buf,
-                        fft_plan->workspace_size, api);
-
-#endif
-  kernelFFTButterfly(k_dim, k_type, handle->queue, fft_plan, direction,
-                     FFT_IFFT);
-  kernelFFTButterflyColumn(k_dim, k_type, handle->queue, fft_plan, direction,
-                           FFT_IFFT);
+  status = kernelFFT2dButterflyColumn(k_dim, k_type, handle->queue, fft_plan,
+                                      direction, FFT_IFFT);
+  INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
 
   return status;
 }
