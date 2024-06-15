@@ -59,12 +59,12 @@
 #endif
 
 #ifndef MAX_DFT_MATRIX_NR
-#define MAX_DFT_MATRIX_NR 21
+#define MAX_DFT_MATRIX_NR 8
 #endif
 
 #ifndef DFT_TABLE_SIZE
 #define DFT_TABLE_SIZE \
-  (16 * 16 * (MAX_DFT_MATRIX_NR + 1) * 8 * 2 + (MAX_DFT_MATRIX_NR + 1) * 8)
+  (32 * 32 * (MAX_DFT_MATRIX_NR + 1) * 8 * 2 + (MAX_DFT_MATRIX_NR + 1) * 8)
 // radix-16, 21-stages, double, complex
 // + addrs size
 #endif

@@ -37,6 +37,9 @@ __mlu_func__ void computeLargeButterflyFirststage(
   int small_section_num, small_butterfly_num, value_mul;
   int tw_offset;
 
+  const int K_num = 64 / sizeof(DT);
+  int align_K = 0;
+
   _small_stage_count = small_factors[0];
   large_radix = small_factors[1];
   tw_offset = small_factors[2];
@@ -248,9 +251,9 @@ __mlu_func__ void computeLargeButterflyFirststage(
           ld_dft_radix = radix;
           for (int entry = 0;; entry++) {
             if (dft_table[entry].radix == ld_dft_radix) {
+              align_K = K_num * ((radix + K_num - 1) / K_num);
               __memcpy(nram_dftmtx, &dft_matrix[dft_table[entry].offset * 2],
-                       sizeof(DT) * 2 * ld_dft_radix * ld_dft_radix, SRAM2NRAM);
-              break;
+                       sizeof(DT) * 2 * ld_dft_radix * align_K, SRAM2NRAM);
             }
 
             if (dft_table[entry].radix == -1) {
@@ -337,9 +340,9 @@ __mlu_func__ void computeLargeButterflyFirststage(
             ld_dft_radix = radix;
             for (int entry = 0;; entry++) {
               if (dft_table[entry].radix == ld_dft_radix) {
+                align_K = K_num * ((radix + K_num - 1) / K_num);
                 __memcpy(nram_dftmtx, &dft_matrix[dft_table[entry].offset * 2],
-                         sizeof(DT) * 2 * ld_dft_radix * ld_dft_radix,
-                         SRAM2NRAM);
+                         sizeof(DT) * 2 * ld_dft_radix * align_K, SRAM2NRAM);
                 break;
               }
 
@@ -403,9 +406,9 @@ __mlu_func__ void computeLargeButterflyFirststage(
             ld_dft_radix = radix;
             for (int entry = 0;; entry++) {
               if (dft_table[entry].radix == ld_dft_radix) {
+                align_K = K_num * ((radix + K_num - 1) / K_num);
                 __memcpy(nram_dftmtx, &dft_matrix[dft_table[entry].offset * 2],
-                         sizeof(DT) * 2 * ld_dft_radix * ld_dft_radix,
-                         SRAM2NRAM);
+                         sizeof(DT) * 2 * ld_dft_radix * align_K, SRAM2NRAM);
                 break;
               }
 
@@ -495,6 +498,9 @@ __mlu_func__ void computeLargeButterflyFirststageBatchPingpong(
   int small_section_num, small_butterfly_num, value_mul;
   int tw_offset, max_para_ldst_num;
 
+  const int K_num = 64 / sizeof(DT);
+  int align_K = 0;
+
   _small_stage_count = small_factors[0];
   large_radix = small_factors[1];
   tw_offset = small_factors[2];
@@ -522,8 +528,7 @@ __mlu_func__ void computeLargeButterflyFirststageBatchPingpong(
   // max_para_ldst_num =
   //     (section_num < max_para_ldst_num) ? section_num : max_para_ldst_num;
 
-  // max_para_ldst_num =
-  //       ((7232) / large_radix > 0) ? (7232) / large_radix : 1;
+  // max_para_ldst_num = ((7232) / large_radix > 0) ? (7232) / large_radix : 1;
   const DT *small_twiddles = twiddles + tw_offset * 2;  // complex
 
   // assign nram space
@@ -717,9 +722,10 @@ __mlu_func__ void computeLargeButterflyFirststageBatchPingpong(
             ld_dft_radix[0] = radix;
             for (int entry = 0;; entry++) {
               if (dft_table[entry].radix == ld_dft_radix[0]) {
+                align_K = K_num * ((radix + K_num - 1) / K_num);
                 __memcpy(nram_dftmtx[0],
                          &dft_matrix[dft_table[entry].offset * 2],
-                         sizeof(DT) * 2 * radix * radix, SRAM2NRAM);
+                         sizeof(DT) * 2 * radix * align_K, SRAM2NRAM);
                 break;
               }
 
@@ -828,9 +834,10 @@ __mlu_func__ void computeLargeButterflyFirststageBatchPingpong(
               ld_dft_radix[0] = radix;
               for (int entry = 0;; entry++) {
                 if (dft_table[entry].radix == ld_dft_radix[0]) {
+                  align_K = K_num * ((radix + K_num - 1) / K_num);
                   __memcpy(nram_dftmtx[0],
                            &dft_matrix[dft_table[entry].offset * 2],
-                           sizeof(DT) * 2 * radix * radix, SRAM2NRAM);
+                           sizeof(DT) * 2 * radix * align_K, SRAM2NRAM);
                   break;
                 }
 
@@ -900,9 +907,10 @@ __mlu_func__ void computeLargeButterflyFirststageBatchPingpong(
               ld_dft_radix[0] = radix;
               for (int entry = 0;; entry++) {
                 if (dft_table[entry].radix == ld_dft_radix[0]) {
+                  align_K = K_num * ((radix + K_num - 1) / K_num);
                   __memcpy(nram_dftmtx[0],
                            &dft_matrix[dft_table[entry].offset * 2],
-                           sizeof(DT) * 2 * radix * radix, SRAM2NRAM);
+                           sizeof(DT) * 2 * radix * align_K, SRAM2NRAM);
                   break;
                 }
 
@@ -967,7 +975,8 @@ __mlu_func__ void computeLargeButterflyOtherstages(
     int dir, int last_stage) {
   // return;
   const dft_table_entry *dft_table = (const dft_table_entry *)dft_matrix;
-
+  const int K_num = 64 / sizeof(DT);
+  int align_K = 0;
   int radix, small_in_stride, small_stage_count, large_radix,
       _small_stage_count;
   int small_section_num, small_butterfly_num, value_mul;
@@ -1238,9 +1247,9 @@ __mlu_func__ void computeLargeButterflyOtherstages(
             ld_dft_radix = radix;
             for (int entry = 0;; entry++) {
               if (dft_table[entry].radix == ld_dft_radix) {
+                align_K = K_num * ((radix + K_num - 1) / K_num);
                 __memcpy(nram_dftmtx, &dft_matrix[dft_table[entry].offset * 2],
-                         sizeof(DT) * 2 * ld_dft_radix * ld_dft_radix,
-                         SRAM2NRAM);
+                         sizeof(DT) * 2 * ld_dft_radix * align_K, SRAM2NRAM);
                 break;
               }
 
@@ -1425,9 +1434,10 @@ __mlu_func__ void computeLargeButterflyOtherstages(
               ld_dft_radix = radix;
               for (int entry = 0;; entry++) {
                 if (dft_table[entry].radix == ld_dft_radix) {
-                  __memcpy(
-                      nram_dftmtx, &dft_matrix[dft_table[entry].offset * 2],
-                      sizeof(DT) * 2 * ld_dft_radix * ld_dft_radix, SRAM2NRAM);
+                  align_K = K_num * ((radix + K_num - 1) / K_num);
+                  __memcpy(nram_dftmtx,
+                           &dft_matrix[dft_table[entry].offset * 2],
+                           sizeof(DT) * 2 * ld_dft_radix * align_K, SRAM2NRAM);
                   break;
                 }
 
@@ -1502,9 +1512,10 @@ __mlu_func__ void computeLargeButterflyOtherstages(
               ld_dft_radix = radix;
               for (int entry = 0;; entry++) {
                 if (dft_table[entry].radix == ld_dft_radix) {
-                  __memcpy(
-                      nram_dftmtx, &dft_matrix[dft_table[entry].offset * 2],
-                      sizeof(DT) * 2 * ld_dft_radix * ld_dft_radix, SRAM2NRAM);
+                  align_K = K_num * ((radix + K_num - 1) / K_num);
+                  __memcpy(nram_dftmtx,
+                           &dft_matrix[dft_table[entry].offset * 2],
+                           sizeof(DT) * 2 * ld_dft_radix * align_K, SRAM2NRAM);
                   break;
                 }
 
@@ -1619,7 +1630,8 @@ __mlu_func__ void computeLargeButterflyOtherstagesBatchPingpong(
 
   const int large_out_stride = large_butterfly_num;
   int tw_offset;
-
+  const int K_num = 64 / sizeof(DT);
+  int align_K = 0;
   _small_stage_count = small_factors[0];
   large_radix = small_factors[1];
   tw_offset = small_factors[2];
@@ -1627,7 +1639,10 @@ __mlu_func__ void computeLargeButterflyOtherstagesBatchPingpong(
   const DT *small_twiddles = _twiddles + tw_offset * 2;  // complex
 
   // const int max_para_ldst_num = (6144 + large_radix - 1) / large_radix;
-  const int max_para_ldst_num = (6400 + large_radix - 1) / large_radix;
+  // int max_para_ldst_num = (6400 + large_radix - 1) / large_radix;
+  int max_para_ldst_num = (large_butterfly_num < small_factors[3])
+                              ? large_butterfly_num
+                              : small_factors[3];
 
   // int para_ldst_num;
   // TODO(zrg): save nram space.
@@ -1855,9 +1870,10 @@ __mlu_func__ void computeLargeButterflyOtherstagesBatchPingpong(
               ld_dft_radix = radix;
               for (int entry = 0;; entry++) {
                 if (dft_table[entry].radix == ld_dft_radix) {
-                  __memcpy(
-                      nram_dftmtx, &dft_matrix[dft_table[entry].offset * 2],
-                      sizeof(DT) * 2 * ld_dft_radix * ld_dft_radix, SRAM2NRAM);
+                  align_K = K_num * ((radix + K_num - 1) / K_num);
+                  __memcpy(nram_dftmtx,
+                           &dft_matrix[dft_table[entry].offset * 2],
+                           sizeof(DT) * 2 * ld_dft_radix * align_K, SRAM2NRAM);
                   break;
                 }
 
@@ -2050,10 +2066,10 @@ __mlu_func__ void computeLargeButterflyOtherstagesBatchPingpong(
                 ld_dft_radix = radix;
                 for (int entry = 0;; entry++) {
                   if (dft_table[entry].radix == ld_dft_radix) {
-                    __memcpy(nram_dftmtx,
-                             &dft_matrix[dft_table[entry].offset * 2],
-                             sizeof(DT) * 2 * ld_dft_radix * ld_dft_radix,
-                             SRAM2NRAM);
+                    align_K = K_num * ((radix + K_num - 1) / K_num);
+                    __memcpy(
+                        nram_dftmtx, &dft_matrix[dft_table[entry].offset * 2],
+                        sizeof(DT) * 2 * ld_dft_radix * align_K, SRAM2NRAM);
                     break;
                   }
 
@@ -2129,10 +2145,10 @@ __mlu_func__ void computeLargeButterflyOtherstagesBatchPingpong(
                 ld_dft_radix = radix;
                 for (int entry = 0;; entry++) {
                   if (dft_table[entry].radix == ld_dft_radix) {
-                    __memcpy(nram_dftmtx,
-                             &dft_matrix[dft_table[entry].offset * 2],
-                             sizeof(DT) * 2 * ld_dft_radix * ld_dft_radix,
-                             SRAM2NRAM);
+                    align_K = K_num * ((radix + K_num - 1) / K_num);
+                    __memcpy(
+                        nram_dftmtx, &dft_matrix[dft_table[entry].offset * 2],
+                        sizeof(DT) * 2 * ld_dft_radix * align_K, SRAM2NRAM);
                     break;
                   }
 
@@ -2250,6 +2266,8 @@ __mlu_func__ void computeLargeButterflyFirststageColumn(
     const int para_batch, const int nb0, const int nb1) {
   // constant
   // const int para_batch = 3;
+  const int K_num = 64 / sizeof(DT);
+  int align_K = 0;
   const dft_table_entry *dft_table = (const dft_table_entry *)dft_matrix;
   // test
   // for(int i =0; i<3; i++){
@@ -2494,8 +2512,9 @@ __mlu_func__ void computeLargeButterflyFirststageColumn(
           ld_dft_radix = radix;
           for (int entry = 0;; entry++) {
             if (dft_table[entry].radix == ld_dft_radix) {
+              align_K = K_num * ((radix + K_num - 1) / K_num);
               __memcpy(nram_dftmtx, &dft_matrix[dft_table[entry].offset * 2],
-                       sizeof(DT) * 2 * ld_dft_radix * ld_dft_radix, SRAM2NRAM);
+                       sizeof(DT) * 2 * ld_dft_radix * align_K, SRAM2NRAM);
               break;
             }
 
@@ -2597,9 +2616,9 @@ __mlu_func__ void computeLargeButterflyFirststageColumn(
             ld_dft_radix = radix;
             for (int entry = 0;; entry++) {
               if (dft_table[entry].radix == ld_dft_radix) {
+                align_K = K_num * ((radix + K_num - 1) / K_num);
                 __memcpy(nram_dftmtx, &dft_matrix[dft_table[entry].offset * 2],
-                         sizeof(DT) * 2 * ld_dft_radix * ld_dft_radix,
-                         SRAM2NRAM);
+                         sizeof(DT) * 2 * ld_dft_radix * align_K, SRAM2NRAM);
                 break;
               }
 
@@ -2658,9 +2677,9 @@ __mlu_func__ void computeLargeButterflyFirststageColumn(
             ld_dft_radix = radix;
             for (int entry = 0;; entry++) {
               if (dft_table[entry].radix == ld_dft_radix) {
+                align_K = K_num * ((radix + K_num - 1) / K_num);
                 __memcpy(nram_dftmtx, &dft_matrix[dft_table[entry].offset * 2],
-                         sizeof(DT) * 2 * ld_dft_radix * ld_dft_radix,
-                         SRAM2NRAM);
+                         sizeof(DT) * 2 * ld_dft_radix * align_K, SRAM2NRAM);
                 break;
               }
 
@@ -2756,6 +2775,9 @@ __mlu_func__ void computeLargeButterflyOtherstagesColumn(
   _small_stage_count = small_factors[0];
   large_radix = small_factors[1];
   tw_offset = small_factors[2];
+
+  const int K_num = 64 / sizeof(DT);
+  int align_K = 0;
 
   const DT *small_twiddles = _twiddles + tw_offset * 2;  // complex
   // const DT *small_twiddles;                               // complex
@@ -3121,9 +3143,9 @@ __mlu_func__ void computeLargeButterflyOtherstagesColumn(
             ld_dft_radix = radix;
             for (int entry = 0;; entry++) {
               if (dft_table[entry].radix == ld_dft_radix) {
+                align_K = K_num * ((radix + K_num - 1) / K_num);
                 __memcpy(nram_dftmtx, &dft_matrix[dft_table[entry].offset * 2],
-                         sizeof(DT) * 2 * ld_dft_radix * ld_dft_radix,
-                         SRAM2NRAM);
+                         sizeof(DT) * 2 * ld_dft_radix * align_K, SRAM2NRAM);
                 break;
               }
 
@@ -3293,9 +3315,10 @@ __mlu_func__ void computeLargeButterflyOtherstagesColumn(
               ld_dft_radix = radix;
               for (int entry = 0;; entry++) {
                 if (dft_table[entry].radix == ld_dft_radix) {
-                  __memcpy(
-                      nram_dftmtx, &dft_matrix[dft_table[entry].offset * 2],
-                      sizeof(DT) * 2 * ld_dft_radix * ld_dft_radix, SRAM2NRAM);
+                  align_K = K_num * ((radix + K_num - 1) / K_num);
+                  __memcpy(nram_dftmtx,
+                           &dft_matrix[dft_table[entry].offset * 2],
+                           sizeof(DT) * 2 * ld_dft_radix * align_K, SRAM2NRAM);
                   break;
                 }
 
@@ -3370,9 +3393,10 @@ __mlu_func__ void computeLargeButterflyOtherstagesColumn(
               ld_dft_radix = radix;
               for (int entry = 0;; entry++) {
                 if (dft_table[entry].radix == ld_dft_radix) {
-                  __memcpy(
-                      nram_dftmtx, &dft_matrix[dft_table[entry].offset * 2],
-                      sizeof(DT) * 2 * ld_dft_radix * ld_dft_radix, SRAM2NRAM);
+                  align_K = K_num * ((radix + K_num - 1) / K_num);
+                  __memcpy(nram_dftmtx,
+                           &dft_matrix[dft_table[entry].offset * 2],
+                           sizeof(DT) * 2 * ld_dft_radix * align_K, SRAM2NRAM);
                   break;
                 }
 

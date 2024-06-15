@@ -258,18 +258,30 @@ mluOpStatus_t MLUOP_WIN_API fftGenerateDftMatrixKernel(DT *dft_matrix,
                                                        const int dir) {
   int j, k;
   DT phase;
-
+  // const int k_align = 64;
+  const int K_num = 64 / sizeof(DT);
+  const int align_K = K_num * ((radix + K_num - 1) / K_num);
   const int sign = (dir == FFT_FORWARD) ? -1 : 1;
-  for (j = 0; j < radix; j++) {
-    // phase = 1 when k = 0
-    for (k = 0; k < radix; k++) {
-      phase = sign * 2 * (DT)FFT_PI * k * j / radix;
-      dft_matrix[radix * k + j] = (DT)cos(phase);                  // r
-      dft_matrix[radix * k + j + radix * radix] = (DT)sin(phase);  // i
-      // twiddles[(butterfly_num * (k - 1) + j) * 2] = (DT)cos(phase);     // r
-      // twiddles[(butterfly_num * (k - 1) + j) * 2 + 1] = (DT)sin(phase); // i
+  for (k = 0; k < radix; k++) {
+    for (j = 0; j < align_K; j++) {
+      // phase = 1 when k = 0
+
+      if (j < radix) {
+        phase = sign * 2 * (DT)FFT_PI * k * j / radix;
+        dft_matrix[align_K * k + j] = (DT)cos(phase);                    // r
+        dft_matrix[align_K * k + j + align_K * radix] = (DT)sin(phase);  // i
+      } else {
+        dft_matrix[align_K * k + j] = (DT)0.0;                    // r
+        dft_matrix[align_K * k + j + align_K * radix] = (DT)0.0;  // i
+
+        //         printf("dft_matrix[%d][%d]: (%f, %f)  ", k, j,
+        // dft_matrix[align_K * k + j], dft_matrix[align_K * k + j + align_K *
+        // radix]);
+      }
+
     }  // radix
-  }    // butterfly_num
+    // printf("\n");
+  }  // butterfly_num
   return MLUOP_STATUS_SUCCESS;
 }
 
@@ -278,10 +290,11 @@ mluOpStatus_t MLUOP_WIN_API fftGenerateDftMatrix(void *&_dft_matrix,
                                                  int *factors, const int _nfft,
                                                  const int dir) {
   // allocate space for dft_matrix_table and dft_matrix
+  const int K_num = 64 / sizeof(DT);
   DT *dft_matrix = new DT[DFT_TABLE_SIZE];  // complex *2(large+small)
   dft_table_entry *dft_matrix_table = (dft_table_entry *)dft_matrix;
   _dft_matrix = dft_matrix;
-
+  int align_K = 0;
   dft_table_entry *dft_matrix_table_end =
       dft_matrix_table + MAX_DFT_MATRIX_NR + 1;
   dft_matrix = (DT *)dft_matrix_table_end;
@@ -321,13 +334,14 @@ mluOpStatus_t MLUOP_WIN_API fftGenerateDftMatrix(void *&_dft_matrix,
       for (int entry = 0;; entry++) {
         if (dft_matrix_table[entry].radix == -1) {
           // DT *dft_matrix_real = dft_matrix;
-
+          align_K = K_num * ((cur_small_radix + K_num - 1) / K_num);
           fftGenerateDftMatrixKernel<DT>(dft_matrix, cur_small_radix, dir);
-          dft_matrix += cur_small_radix * cur_small_radix * 2;
+          dft_matrix += cur_small_radix * align_K * 2;
 
           dft_matrix_table[cur_table_entry] = {cur_small_radix, cur_offset};
           cur_table_entry++;
-          cur_offset += cur_small_radix * cur_small_radix;
+          cur_offset += cur_small_radix * align_K;
+
           if (cur_table_entry == MAX_DFT_MATRIX_NR) {
             LOG(ERROR) << "[fftGenerateDftMatrix]: too much dft matrices";
           }
@@ -979,7 +993,7 @@ mluOpStatus_t MLUOP_WIN_API setMaxParallelNum(mluOpFFTPlan_t fft_plan,
       (MAX_NRAM_SIZE + REM_FOR_STACK - 32 * 1024 - FFT_MAXFACTORS * 4);
   size_t workspace_size = 0;
   size_t reservespace_size = 0;
-  int max_radix = 0;
+  const int max_radix = 64;
   size_t TYPE_SIZE = 0;
   int max_parallel_num = 0;
   int nram_space_need = 0;
@@ -987,7 +1001,7 @@ mluOpStatus_t MLUOP_WIN_API setMaxParallelNum(mluOpFFTPlan_t fft_plan,
   int nram_space_need_dftmtx = (stage == 1)
                                    ? max_radix * max_radix * 2 * 2
                                    : max_radix * max_radix * 2;  // complex
-  int nram_space_need_dftmtx_align = 0;
+  // int nram_space_need_dftmtx_align = 0;
   int space_need_matmul = 0;
   int space_need_matmul_tmp = 0;
   int small_stage_num = facbuf[0];
@@ -1018,7 +1032,7 @@ mluOpStatus_t MLUOP_WIN_API setMaxParallelNum(mluOpFFTPlan_t fft_plan,
     }; break;
     case CNFFT_COMPLEX_FLOAT2COMPLEX_FLOAT: {
       TYPE_SIZE = 4;
-      max_radix = 64;
+      K_num = 64 / TYPE_SIZE;
 
       if (stage == 1) {
         nram_space_need = 0;
@@ -1041,12 +1055,16 @@ mluOpStatus_t MLUOP_WIN_API setMaxParallelNum(mluOpFFTPlan_t fft_plan,
         nram_space_need += _n * 2 * TYPE_SIZE;  // complex
         // nram_para_store_pong
         nram_space_need += _n * 2 * TYPE_SIZE;  // complex
-        // _nram_tw
+        // nram_para_load_tw
         nram_space_need += _n * 2 * TYPE_SIZE;  // complex
+        // // _nram_tw
+        // nram_space_need += _n * 2 * TYPE_SIZE;  // complex
       }
 
       space_need_matmul = 0;
-
+      if (stage != 1) {
+        space_need_matmul = _n * 4 * TYPE_SIZE;
+      }
       for (int small_stage_id = 1; small_stage_id <= small_stage_num;
            small_stage_id++) {
         radix = facbuf[small_stage_id * 4 + 0];
@@ -1055,7 +1073,6 @@ mluOpStatus_t MLUOP_WIN_API setMaxParallelNum(mluOpFFTPlan_t fft_plan,
         if (small_stage_id == 1) {
           para_num = section_num * 2;
           align_M = radix;
-          K_num = 64 / TYPE_SIZE;
           align_K = K_num * ((radix + K_num - 1) / K_num);
           align_N = para_num;
           // align_N = 64 * ((para_num + 64 - 1) / 64);
@@ -1068,7 +1085,6 @@ mluOpStatus_t MLUOP_WIN_API setMaxParallelNum(mluOpFFTPlan_t fft_plan,
         } else {
           para_num = butterfly_num * section_num;
           align_M = radix;
-          K_num = 64 / TYPE_SIZE;
           align_K = K_num * ((radix + K_num - 1) / K_num);
           // align_N = 64 * ((para_num + 64 - 1) / 64);
           align_N = para_num;
@@ -1082,8 +1098,8 @@ mluOpStatus_t MLUOP_WIN_API setMaxParallelNum(mluOpFFTPlan_t fft_plan,
           //     (align_K != radix) ? (align_M * align_K * 2 * TYPE_SIZE) : 0;
         }
 
-        nram_space_need_dftmtx_align =
-            (align_K != radix) ? (align_M * 64 * 2 * TYPE_SIZE) : 0;
+        // nram_space_need_dftmtx_align =
+        //     (align_K != radix) ? (align_M * 64 * 2 * TYPE_SIZE) : 0;
         space_need_matmul = (space_need_matmul > space_need_matmul_tmp)
                                 ? space_need_matmul
                                 : space_need_matmul_tmp;
@@ -1091,9 +1107,8 @@ mluOpStatus_t MLUOP_WIN_API setMaxParallelNum(mluOpFFTPlan_t fft_plan,
 
       // nram_space_need += space_need_matmul;
       nram_space_need_tw = _n * 2 * TYPE_SIZE;  // complex
-      size_t nram_space_remain =
-          (nram_space_size - nram_space_need_tw - nram_space_need_dftmtx -
-           nram_space_need_dftmtx_align);
+      const size_t nram_space_remain =
+          (nram_space_size - nram_space_need_tw - nram_space_need_dftmtx);
       max_parallel_num =
           nram_space_remain / (nram_space_need + space_need_matmul);
 
@@ -1110,7 +1125,6 @@ mluOpStatus_t MLUOP_WIN_API setMaxParallelNum(mluOpFFTPlan_t fft_plan,
           if (small_stage_id == 1) {
             para_num = section_num * 2 * max_parallel_num;
             align_M = radix;
-            K_num = 64 / TYPE_SIZE;
             align_K = K_num * ((radix + K_num - 1) / K_num);
             align_N = 64 * ((para_num + 64 - 1) / 64);
 
@@ -1121,7 +1135,6 @@ mluOpStatus_t MLUOP_WIN_API setMaxParallelNum(mluOpFFTPlan_t fft_plan,
           } else {
             para_num = butterfly_num * section_num * max_parallel_num;
             align_M = radix;
-            K_num = 64 / TYPE_SIZE;
             align_K = K_num * ((radix + K_num - 1) / K_num);
             align_N = 64 * ((para_num + 64 - 1) / 64);
 
@@ -1144,7 +1157,6 @@ mluOpStatus_t MLUOP_WIN_API setMaxParallelNum(mluOpFFTPlan_t fft_plan,
           max_parallel_num--;
         }
       }
-
     }; break;
   }
 

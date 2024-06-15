@@ -65,11 +65,14 @@ __mlu_func__ void computeMutiStageOnchip(DT *input, DT *output, int *factors,
   int sram_offset = 0;
   int *sram_factors = (int *)(sram_buffer + sram_offset);
   sram_offset += FFT_MAXFACTORS * sizeof(int);
-  DT *sram_dftmtx = (DT *)(sram_buffer + sram_offset);
-  sram_offset += DFT_TABLE_SIZE * sizeof(DT);
+
   DT *sram_twiddles = (DT *)(sram_buffer + sram_offset);
   const int twiddles_size = twiddles_end - twiddles;
   sram_offset += twiddles_size * sizeof(DT);
+
+  int sram_dftmtx_size = 0;
+  DT *sram_dftmtx = (DT *)(sram_buffer + sram_offset);
+  // sram_offset += sram_dftmtx_size * sizeof(DT);
 
   const int _stage_count = factors[0];
   const int nfft = factors[1];
@@ -108,10 +111,10 @@ __mlu_func__ void computeMutiStageOnchip(DT *input, DT *output, int *factors,
         if (dft_table[entry + 1].radix == -1) {
           int last_radix = dft_table[entry].radix;
           int last_offset = dft_table[entry].offset;
-          __memcpy_async(
-              sram_dftmtx, dft_matrix,
-              sizeof(DT) * 2 * (last_radix * last_radix + last_offset),
-              GDRAM2SRAM);
+
+          // last_radix * last_radix < last_radix * 64
+          sram_dftmtx_size = sizeof(DT) * 2 * (last_radix * 64 + last_offset);
+          __memcpy_async(sram_dftmtx, dft_matrix, sram_dftmtx_size, GDRAM2SRAM);
           break;
         }
       }

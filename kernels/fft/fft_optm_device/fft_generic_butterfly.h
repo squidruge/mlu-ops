@@ -72,21 +72,7 @@ __mlu_func__ void computeGenericButterflyFirststageMat_v1(
   nram_scratch_offset += (align_N * align_K * 2);
   FFT_CPX_T<DT> in_trans = {nram_out_r, nram_out_i};
 
-  FFT_CPX_T<DT> dftmtx;
-
-  if (align_K != radix) {
-    dftmtx = {&nram_scratch[nram_scratch_offset],
-              &nram_scratch[nram_scratch_offset + align_M * align_K]};
-    nram_scratch_offset += (align_M * align_K * 2);
-
-    __bang_pad(dftmtx.r, nram_dftmtx, 1, radix, radix, 0, 0, 0,
-               align_K - radix);
-    __bang_pad(dftmtx.i, &nram_dftmtx[radix * radix], 1, radix, radix, 0, 0, 0,
-               align_K - radix);
-
-  } else {
-    dftmtx = {nram_dftmtx, &nram_dftmtx[radix * radix]};
-  }
+  FFT_CPX_T<DT> dftmtx = {nram_dftmtx, &nram_dftmtx[radix * align_K]};
 
   DT *RR = &nram_scratch[nram_scratch_offset];
   DT *RI = &nram_scratch[nram_scratch_offset + align_K * align_N];
@@ -215,32 +201,7 @@ __mlu_func__ void computeGenericButterflyFirststageMat(
   // FFT_CPX_T<DT> in_trans = {nram_out_r, nram_out_i};
   // FFT_CPX_T<DT> in_trans = {nram_out_r, &nram_out_r[radix*butterfly_num]};
 
-  FFT_CPX_T<DT> dftmtx;
-
-  if (align_K != radix) {
-    dftmtx = {&nram_scratch[nram_scratch_offset],
-              &nram_scratch[nram_scratch_offset + align_M * align_K]};
-    nram_scratch_offset += (align_M * align_K * 2);
-    __bang_pad(dftmtx.r, nram_dftmtx, 1, radix, radix, 0, 0, 0,
-               align_K - radix);
-    __bang_pad(dftmtx.i, &nram_dftmtx[radix * radix], 1, radix, radix, 0, 0, 0,
-               align_K - radix);
-
-  } else {
-    dftmtx = {nram_dftmtx, &nram_dftmtx[radix * radix]};
-  }
-
-  // if (align_K == radix) {
-  //   if (align_N != para_num) {
-  //     __bang_pad(in_align, in_trans.r, 1, para_num, radix, 0,
-  //                align_N - para_num, 0, 0);
-  //   } else {
-  //     in_align = in_trans.r;
-  //   }
-  // } else {
-  //     __bang_pad(in_align, in_trans.r, 1, para_num, radix, 0,
-  //                align_N - para_num, 0, align_K - radix);
-  // }
+  FFT_CPX_T<DT> dftmtx = {nram_dftmtx, &nram_dftmtx[radix * align_K]};
 
   if (align_K == radix && align_N == para_num) {
     in_align = in_trans_r;
@@ -328,20 +289,7 @@ __mlu_func__ void computeGenericButterflyOtherstagesMat(
       &nram_scratch[nram_scratch_offset + para_num * radix]};
   nram_scratch_offset += (para_num * radix * 2);
 
-  FFT_CPX_T<DT> dftmtx;
-
-  if (align_K != radix) {
-    dftmtx = {&nram_scratch[nram_scratch_offset],
-              &nram_scratch[nram_scratch_offset + align_M * align_K]};
-    nram_scratch_offset += (align_M * align_K * 2);
-    __bang_pad(dftmtx.r, nram_dftmtx, 1, radix, radix, 0, 0, 0,
-               align_K - radix);
-    __bang_pad(dftmtx.i, &nram_dftmtx[radix * radix], 1, radix, radix, 0, 0, 0,
-               align_K - radix);
-
-  } else {
-    dftmtx = {nram_dftmtx, &nram_dftmtx[radix * radix]};
-  }
+  FFT_CPX_T<DT> dftmtx = {nram_dftmtx, &nram_dftmtx[radix * align_K]};
 
   DT *RR = &nram_scratch[nram_scratch_offset];
   DT *RI = &nram_scratch[nram_scratch_offset + align_K * align_N];
