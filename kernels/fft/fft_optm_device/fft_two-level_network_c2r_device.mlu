@@ -60,3 +60,21 @@ __mlu_global__ void MLUKernelIRFFTButterfly(void *input, void *output,
     }
   }
 }
+
+
+mluOpStatus_t MLUOP_WIN_API kernelIRFFTButterfly(cnrtDim3_t k_dim,
+                                               cnrtFunctionType_t k_type,
+                                               cnrtQueue_t queue,
+                                               mluOpFFTPlan_t fft_plan,
+                                               int direction, FFTFlag flag) {
+  VLOG(5) << "Launch Kernel kernelIRFFTButterfly <<Union" << k_type / CORE_DIM
+          << ", " << k_dim.x << ", " << k_dim.y << ", " << k_dim.z << ">>>";
+  KERNEL_CHECK((MLUKernelIRFFTButterfly<<<k_dim, k_type, queue>>>(
+      fft_plan->mlu_addrs.input, fft_plan->mlu_addrs.output,
+      fft_plan->mlu_addrs.factors, fft_plan->mlu_addrs.twiddles,
+      fft_plan->mlu_addrs.twiddles_end, fft_plan->mlu_addrs.dft_matrix,
+      fft_plan->mlu_addrs.buffer_buf, fft_plan->batch, flag,
+      direction,  // direction, -1 means invalid(only FFT_IFFT use).
+      fft_plan->output_dtype)));
+  return MLUOP_STATUS_SUCCESS;
+}

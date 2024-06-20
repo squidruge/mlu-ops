@@ -158,7 +158,7 @@ __mlu_func__ void computeMutiStageOnchip(DT *input, DT *output, int *factors,
 
         // first stage
 
-        computeLargeButterflyFirststage<DT>(
+        computeLargeButterflyFirststageC2R<DT>(
             output_batch, input_batch, in_stride, section_num, twiddles,
             sram_dftmtx, (void *)nram_buf, small_factors, direction, nfft,
             last_stage);
@@ -222,7 +222,7 @@ __mlu_func__ void computeMutiStageOnchip(DT *input, DT *output, int *factors,
           DT *output_batch = output + t * (nfft << 1);
           DT *buffer_batch = buffer + t * (nfft << 1);
 
-          computeLargeButterflyOtherstages<DT>(
+          computeLargeButterflyOtherstagesC2R<DT>(
               output_batch, buffer_batch, (DT *)twiddles, _twiddles,
               sram_dftmtx, section_num, butterfly_num, in_stride,
               (void *)nram_buf, small_factors, nfft, direction, 0);
@@ -262,7 +262,7 @@ __mlu_func__ void computeMutiStageOnchip(DT *input, DT *output, int *factors,
           DT *output_batch = output + t * (nfft << 1);
           DT *buffer_batch = buffer + t * (nfft << 1);
 
-          computeLargeButterflyLaststage<DT>(
+          computeLargeButterflyLaststageC2R<DT>(
               output_batch, buffer_batch, (DT *)twiddles, _twiddles,
               sram_dftmtx, section_num, butterfly_num, in_stride,
               (void *)nram_buf, small_factors, nfft, direction);
