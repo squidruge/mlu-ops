@@ -1745,6 +1745,25 @@ mluOpStatus_t execFFTc2c1d(mluOpHandle_t handle, mluOpFFTPlan_t fft_plan,
   return status;
 }
 
+mluOpStatus_t execFFTc2r1d(mluOpHandle_t handle, mluOpFFTPlan_t fft_plan,
+                           const float scale_factor, int direction) {
+  std::string api = "[execFFTc2r1d]";
+
+  VLOG(5) << "launch c2c fft1d";
+  // TODO(niyuming) luanch merge kernel
+  // int core_num = handle->core_num_per_cluster;
+  mluOpStatus_t status = MLUOP_STATUS_SUCCESS;
+  
+  cnrtDim3_t k_dim;
+  cnrtFunctionType_t k_type;
+  policyFunc(handle, &k_dim, &k_type);
+  kernelFFTButterfly(k_dim, k_type, handle->queue, fft_plan, direction,
+                     FFT_IFFT);
+
+  return status;
+}
+
+
 mluOpStatus_t execFFTc2c2d(mluOpHandle_t handle, mluOpFFTPlan_t fft_plan,
                            const float scale_factor, int direction) {
   std::string api = "[execFFTc2c1d]";
