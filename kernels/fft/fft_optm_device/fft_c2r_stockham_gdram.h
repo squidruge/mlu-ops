@@ -40,6 +40,7 @@ __mlu_func__ void computeMutiStageOnchip(DT *input, DT *output, int *factors,
 
   char *nram_buf = nram_buffer;
 
+
   // Each core needs to process "t_len" blocks, "remain_num" is evenly
   // assigned to the previous "remian_num" cores.
   int t_len = repeat_num + ((remain_num > 0 && taskId < remain_num) ? 1 : 0);
