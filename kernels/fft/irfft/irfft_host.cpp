@@ -1340,8 +1340,6 @@ mluOpStatus_t execIRFFT1d(mluOpHandle_t handle, const mluOpFFTPlan_t fft_plan,
                           void *workspace, void *output) {
   mluOpStatus_t status = MLUOP_STATUS_SUCCESS;
   std::string api = "[mluOpExecFFT]";
-
-  printf("call of execIRFFT1d!!\n");
 #if 0
   configureIRFFT1dMatmulWorkspaceAddrs(handle, fft_plan, (void *)input,
                                        workspace, output);

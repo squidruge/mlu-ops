@@ -85,39 +85,39 @@ __mlu_func__ void computeMutiStageOnchipC2R(DT *input, DT *output, int *factors,
   stage_count = _stage_count;
   last_stage = (stage_count == 1);
 
-  if (__is_mpu()) {
-    __memcpy_async(sram_factors, factors, FFT_MAXFACTORS * sizeof(int),
-                   GDRAM2SRAM);
-    __memcpy_async(sram_twiddles, twiddles, twiddles_size * sizeof(DT),
-                   GDRAM2SRAM);
-    // _small_stage_count = small_factors[0];
+//   if (__is_mpu()) {
+//     __memcpy_async(sram_factors, factors, FFT_MAXFACTORS * sizeof(int),
+//                    GDRAM2SRAM);
+//     __memcpy_async(sram_twiddles, twiddles, twiddles_size * sizeof(DT),
+//                    GDRAM2SRAM);
+//     // _small_stage_count = small_factors[0];
+//     const dft_table_entry *dft_table_gdram =
+//         (const dft_table_entry *)dft_matrix;
+//     int dft_matrix_offset = dft_table_gdram[0].offset;
 
-    const dft_table_entry *dft_table_gdram =
-        (const dft_table_entry *)dft_matrix;
-    int dft_matrix_offset = dft_table_gdram[0].offset;
+//     if (dft_matrix_offset != -1) {
+//       // copy the table
+//       __memcpy(sram_dftmtx, dft_matrix, sizeof(DT) * 2 * dft_matrix_offset,
+//                GDRAM2SRAM);
+//       const dft_table_entry *dft_table = (const dft_table_entry *)sram_dftmtx;
 
-    if (dft_matrix_offset != -1) {
-      // copy the table
-      __memcpy(sram_dftmtx, dft_matrix, sizeof(DT) * 2 * dft_matrix_offset,
-               GDRAM2SRAM);
-      const dft_table_entry *dft_table = (const dft_table_entry *)sram_dftmtx;
-
-      for (int entry = 0;; entry++) {
-        if (dft_table[entry + 1].radix == -1) {
-          int last_radix = dft_table[entry].radix;
-          int last_offset = dft_table[entry].offset;
-          __memcpy_async(
-              sram_dftmtx, dft_matrix,
-              sizeof(DT) * 2 * (last_radix * last_radix + last_offset),
-              GDRAM2SRAM);
-          break;
-        }
-      }
-    }
-    factors = sram_factors;
-  }
-
+//       for (int entry = 0;; entry++) {
+//         if (dft_table[entry + 1].radix == -1) {
+//           int last_radix = dft_table[entry].radix;
+//           int last_offset = dft_table[entry].offset;
+//           __memcpy_async(
+//               sram_dftmtx, dft_matrix,
+//               sizeof(DT) * 2 * (last_radix * last_radix + last_offset),
+//               GDRAM2SRAM);
+//           break;
+//         }
+//       }
+//     }
+//     factors = sram_factors;
+//   }
+  printf("taskId:%d has arrived the sync point\n",taskId);
   __sync_cluster();
+  printf("taskId:%d has finished the sync\n",taskId);
   if (__is_ipu()) {
     __memcpy(nram_factors, sram_factors, FFT_MAXFACTORS * sizeof(int),
              SRAM2NRAM);
@@ -146,9 +146,10 @@ __mlu_func__ void computeMutiStageOnchipC2R(DT *input, DT *output, int *factors,
     // _stage_count = stage_count;
 
     if (_stage_count != 1) FFT_SWAP_PTR(buffer, output);
-
+    printf("judge before first stage\n");
     if (repeat_num > 0 || taskId < remain_num) {
       for (int t = t_start; t < t_end; t++) {
+        printf("enter the judge before first stage\n");
         // MLULOG("taskId: %d, batchId: %d\n", taskId, t);
         DT *input_batch = input + t * (nfft << 1);
         DT *output_batch = output + t * (nfft << 1);
