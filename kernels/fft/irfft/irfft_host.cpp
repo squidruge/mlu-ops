@@ -1315,13 +1315,33 @@ static mluOpStatus_t makeIRFFT1dContiguousOutput(mluOpHandle_t handle,
   return status;
 }
 
+/* -------------------------------------------------------------------------- */
+
+mluOpStatus_t execFFTc2r1d(mluOpHandle_t handle, mluOpFFTPlan_t fft_plan,
+                           const float scale_factor, int direction) {
+  std::string api = "[execFFTc2r1d]";
+
+  VLOG(5) << "launch c2r fft1d";
+  // TODO(niyuming) luanch merge kernel
+  // int core_num = handle->core_num_per_cluster;
+  mluOpStatus_t status = MLUOP_STATUS_SUCCESS;
+  
+  cnrtDim3_t k_dim;
+  cnrtFunctionType_t k_type;
+  policyFunc(handle, &k_dim, &k_type);
+  kernelIRFFTButterfly(k_dim, k_type, handle->queue, fft_plan, direction,
+                     FFT_IFFT);
+
+  return status;
+}
+
 mluOpStatus_t execIRFFT1d(mluOpHandle_t handle, const mluOpFFTPlan_t fft_plan,
                           const void *input, const float scale_factor,
                           void *workspace, void *output) {
   mluOpStatus_t status = MLUOP_STATUS_SUCCESS;
   std::string api = "[mluOpExecFFT]";
 
-  printf("call of execIRFFT1d!!\n")
+  printf("call of execIRFFT1d!!\n");
 #if 0
   configureIRFFT1dMatmulWorkspaceAddrs(handle, fft_plan, (void *)input,
                                        workspace, output);
@@ -1351,9 +1371,8 @@ mluOpStatus_t execIRFFT1d(mluOpHandle_t handle, const mluOpFFTPlan_t fft_plan,
   INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
 
 #endif
-  configureFFT1dWorkspaceAddrs_v2(handle, fft_plan, (void *)input, workspace,
-                                  output);
-
+  configureIRFFT1dMatmulWorkspaceAddrs(handle, fft_plan, (void *)input,
+                                       workspace, output);
   status = execFFTc2r1d(handle, fft_plan, scale_factor, 1);
   return status;
 }

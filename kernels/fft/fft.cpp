@@ -1533,6 +1533,8 @@ mluOpStatus_t MLUOP_WIN_API mluOpSetFFTReserveArea(mluOpHandle_t handle,
 mluOpStatus_t MLUOP_WIN_API mluOpExecFFT(
     mluOpHandle_t handle, const mluOpFFTPlan_t fft_plan, const void *input,
     const float scale_factor, void *workspace, void *output, int direction) {
+  printf("call of mluOpExecFFT\n");
+  
   const std::string exec_api = "[mluOpExecFFT]";
   PARAM_CHECK_NE(exec_api, handle, NULL);
   PARAM_CHECK_NE(exec_api, fft_plan, NULL);
@@ -1580,6 +1582,7 @@ mluOpStatus_t MLUOP_WIN_API mluOpExecFFT(
     // r2c
     case CNFFT_HALF2COMPLEX_HALF:
     case CNFFT_FLOAT2COMPLEX_FLOAT: {
+      printf("enter to R2C\n");
       if ((fft_plan->idist < (fft_plan->odist * 2)) && is_in_place) {
         LOG(ERROR)
             << exec_api
@@ -1603,6 +1606,7 @@ mluOpStatus_t MLUOP_WIN_API mluOpExecFFT(
     // c2c
     case CNFFT_COMPLEX_HALF2COMPLEX_HALF:
     case CNFFT_COMPLEX_FLOAT2COMPLEX_FLOAT: {
+      printf("enter to C2C\n");
       if ((fft_plan->idist < fft_plan->odist) && is_in_place) {
         LOG(ERROR)
             << exec_api
@@ -1628,6 +1632,8 @@ mluOpStatus_t MLUOP_WIN_API mluOpExecFFT(
     // c2r
     case CNFFT_COMPLEX_HALF2HALF:
     case CNFFT_COMPLEX_FLOAT2FLOAT: {
+      printf("enter to C2R\n");
+      
       if (((fft_plan->idist * 2) < fft_plan->odist) && is_in_place) {
         LOG(ERROR)
             << exec_api
