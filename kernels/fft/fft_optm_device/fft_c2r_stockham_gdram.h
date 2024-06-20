@@ -114,7 +114,7 @@ __mlu_func__ void computeMutiStageOnchipC2R(DT *input, DT *output, int *factors,
 //       }
 //     }
 //     factors = sram_factors;
-//   }
+//   } 
   printf("taskId:%d has arrived the sync point\n",taskId);
   __sync_cluster();
   printf("taskId:%d has finished the sync\n",taskId);
