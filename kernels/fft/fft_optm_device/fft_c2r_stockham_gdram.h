@@ -114,8 +114,8 @@ __mlu_func__ void computeMutiStageOnchipC2R(DT *input, DT *output, int *factors,
 //       }
 //     }
 //     factors = sram_factors;
-//   } 
-  printf("taskId:%d has arrived the sync point\n",taskId);
+//   }
+
   __sync_cluster();
   printf("taskId:%d has finished the sync\n",taskId);
   if (__is_ipu()) {
@@ -146,10 +146,8 @@ __mlu_func__ void computeMutiStageOnchipC2R(DT *input, DT *output, int *factors,
     // _stage_count = stage_count;
 
     if (_stage_count != 1) FFT_SWAP_PTR(buffer, output);
-    printf("judge before first stage\n");
     if (repeat_num > 0 || taskId < remain_num) {
       for (int t = t_start; t < t_end; t++) {
-        printf("enter the judge before first stage\n");
         // MLULOG("taskId: %d, batchId: %d\n", taskId, t);
         DT *input_batch = input + t * (nfft << 1);
         DT *output_batch = output + t * (nfft << 1);
