@@ -29,7 +29,7 @@ __mlu_shared__ char sram_buffer[MAX_SRAM_SIZE];
 extern __wram__ char wram_buffer[MAX_WRAM_SIZE];
 
 template <typename DT>
-__mlu_func__ void computeMutiStageOnchip(DT *input, DT *output, int *factors,
+__mlu_func__ void computeMutiStageOnchipC2R(DT *input, DT *output, int *factors,
                                          DT *twiddles, const DT *twiddles_end,
                                          const DT *dft_matrix, DT *buffer,
                                          int batch, int fft_flag,
