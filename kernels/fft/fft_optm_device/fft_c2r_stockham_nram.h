@@ -29,7 +29,7 @@ __mlu_func__ void computeLargeButterflyFirststageC2R(
     DT *output, DT *input, int large_in_stride, int section_num,
     const DT *twiddles, const DT *dft_matrix, void *nram_buf,
     const int *small_factors, int dir, int nfft, int last_stage) {
-    printf("call of computeLargeButterflyFirststage");
+    // printf("call of computeLargeButterflyFirststage\n");
 
 }
 
