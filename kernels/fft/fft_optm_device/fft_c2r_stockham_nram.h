@@ -25,7 +25,7 @@
 #include "kernels/fft/fft_optm_device/fft_vector_butterfly.h"
 
 template <typename DT>
-__mlu_func__ void computeLargeButterflyFirststage(
+__mlu_func__ void computeLargeButterflyFirststageC2R(
     DT *output, DT *input, int large_in_stride, int section_num,
     const DT *twiddles, const DT *dft_matrix, void *nram_buf,
     const int *small_factors, int dir, int nfft, int last_stage) {
@@ -34,7 +34,7 @@ __mlu_func__ void computeLargeButterflyFirststage(
 }
 
 template <typename DT>
-__mlu_func__ void computeLargeButterflyOtherstages(
+__mlu_func__ void computeLargeButterflyOtherstagesC2R(
     DT *output, DT *input, const DT *cur_large_twiddles, const DT *_twiddles,
     const DT *dft_matrix, int large_section_num, int large_butterfly_num,
     int large_in_stride, void *nram_buf, const int *small_factors, int nfft,
@@ -43,7 +43,7 @@ __mlu_func__ void computeLargeButterflyOtherstages(
 }
 
 template <typename DT>
-__mlu_func__ void computeLargeButterflyLaststage(
+__mlu_func__ void computeLargeButterflyLaststageC2R(
     DT *output, DT *input, const DT *cur_large_twiddles, const DT *_twiddles,
     const DT *dft_matrix, int large_section_num, int large_butterfly_num,
     int large_in_stride, void *nram_buf, const int *small_factors, int nfft,
