@@ -1319,8 +1319,10 @@ mluOpStatus_t execIRFFT1d(mluOpHandle_t handle, const mluOpFFTPlan_t fft_plan,
                           const void *input, const float scale_factor,
                           void *workspace, void *output) {
   mluOpStatus_t status = MLUOP_STATUS_SUCCESS;
-
   std::string api = "[mluOpExecFFT]";
+
+  printf("call of execIRFFT1d!!\n")
+#if 0
   configureIRFFT1dMatmulWorkspaceAddrs(handle, fft_plan, (void *)input,
                                        workspace, output);
 
@@ -1347,5 +1349,11 @@ mluOpStatus_t execIRFFT1d(mluOpHandle_t handle, const mluOpFFTPlan_t fft_plan,
 
   status = makeIRFFT1dContiguousOutput(handle, fft_plan, output);
   INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
+
+#endif
+  configureFFT1dWorkspaceAddrs_v2(handle, fft_plan, (void *)input, workspace,
+                                  output);
+
+  status = execFFTc2r1d(handle, fft_plan, scale_factor, 1);
   return status;
 }
