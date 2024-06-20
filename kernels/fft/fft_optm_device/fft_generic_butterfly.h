@@ -80,9 +80,7 @@ __mlu_func__ void computeGenericButterflyFirststageMat_v1(
   DT *II = &nram_scratch[nram_scratch_offset + align_K * align_N * 3];
 
   nram_scratch_offset += (align_K * 4 * align_N);
-  MLULOG("nram_scratch_offset: %d bytes.\n", nram_scratch_offset * sizeof(DT));
-  MLULOG("nram offset in generic: %d bytes.\n",
-         (size_t)&nram_scratch[nram_scratch_offset] - (size_t)nram_buffer);
+
   __bang_transpose(in_trans.r, nram_in_r, radix, butterfly_num);
   __bang_transpose(in_trans.i, nram_in_i, radix, butterfly_num);
 

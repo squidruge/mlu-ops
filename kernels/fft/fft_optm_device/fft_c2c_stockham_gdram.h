@@ -401,7 +401,9 @@ __mlu_func__ void computeMutiStageOnchipColumn(
 
   DT *odd_extra_buffer;
   // TODO(zrg): find largest radix, 6000/ largest
-  int max_para_batch = (6144 / radix) > batch ? batch : (6144 / radix);
+  // int max_para_batch = (6144 / radix) > batch ? batch : (6144 / radix);
+  int max_para_batch;
+
   //  int max_para_batch = 6000/64;
 
   if (__is_ipu()) {
@@ -421,6 +423,8 @@ __mlu_func__ void computeMutiStageOnchipColumn(
     if (_stage_count != 1) FFT_SWAP_PTR(buffer, output);
 
     if (repeat_num > 0 || taskId < remain_num) {
+      small_factors = factors + small_factors_offset;
+      max_para_batch = small_factors[3] > batch ? batch : small_factors[3];
       for (int t = t_start; t < t_end; t += max_para_batch) {
         // MLULOG("taskId: %d, batchId: %d\n", taskId, t);
         int para_batch =
@@ -442,7 +446,7 @@ __mlu_func__ void computeMutiStageOnchipColumn(
         int nb0 = nfft;
         int nb1 = batch;
         // if(0)
-        small_factors = factors + small_factors_offset;
+
         computeLargeButterflyFirststageColumn<DT>(
             output_batch, input_batch, in_stride, section_num, twiddles,
             sram_dftmtx, (void *)nram_buf, small_factors, direction, nfft,
