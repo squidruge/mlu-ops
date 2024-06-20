@@ -42,14 +42,14 @@ __mlu_global__ void MLUKernelIRFFTButterfly(void *input, void *output,
   switch (dtype_size) {
     case (MLUOP_DTYPE_COMPLEX_FLOAT):
     case (MLUOP_DTYPE_FLOAT): {
-      computeMutiStageOnchip<float>((float *)input, (float *)output, factors,
+      computeMutiStageOnchipC2R<float>((float *)input, (float *)output, factors,
                                     (float *)twiddles, (float *)twiddles_end,
                                     (float *)dft_matrix, (float *)buffer, batch,
                                     fft_flag, direction);
     }; break;
     case (MLUOP_DTYPE_COMPLEX_HALF):
     case (MLUOP_DTYPE_HALF): {
-      computeMutiStageOnchip<half>((half *)input, (half *)output, factors,
+      computeMutiStageOnchipC2R<half>((half *)input, (half *)output, factors,
                                    (half *)twiddles, (half *)twiddles_end,
                                    (half *)dft_matrix, (half *)buffer, batch,
                                    fft_flag, direction);
@@ -60,4 +60,3 @@ __mlu_global__ void MLUKernelIRFFTButterfly(void *input, void *output,
     }
   }
 }
-//
