@@ -82,7 +82,6 @@ mluOpStatus_t MLUOP_WIN_API kernelIRFFTButterfly(cnrtDim3_t k_dim,
 //     printf("dft_matrix[%d]:%f\n", i, ((float *)fft_plan->mlu_addrs.dft_matrix)[i]);
 //   }
 
-
   KERNEL_CHECK((MLUKernelIRFFTButterfly<<<k_dim, k_type, queue>>>(
       fft_plan->mlu_addrs.input, fft_plan->mlu_addrs.output,
       fft_plan->mlu_addrs.factors, fft_plan->mlu_addrs.twiddles,
