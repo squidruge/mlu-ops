@@ -626,14 +626,16 @@ mluOpStatus_t setFFT2dReserveArea(mluOpHandle_t handle, mluOpFFTPlan_t fft_plan,
   size_t CPX_TYPE_SIZE = 0;
 
   switch (fft_plan->fft_type) {
+    case CNFFT_HALF2COMPLEX_HALF:
     case CNFFT_COMPLEX_HALF2COMPLEX_HALF: {
       CPX_TYPE_SIZE = 2 * 2;
     } break;
+    case CNFFT_FLOAT2COMPLEX_FLOAT:
     case CNFFT_COMPLEX_FLOAT2COMPLEX_FLOAT: {
       CPX_TYPE_SIZE = 4 * 2;
     }; break;
     default: {
-      LOG(ERROR) << make_plan_api << ": invalid c2c 2d fft type.";
+      LOG(ERROR) << make_plan_api << ": invalid 2d fft type.";
       status = MLUOP_STATUS_NOT_SUPPORTED;
       return status;
     }
@@ -693,21 +695,52 @@ mluOpStatus_t setFFT2dReserveArea(mluOpHandle_t handle, mluOpFFTPlan_t fft_plan,
     CNRT_CHECK(cnrtMemcpy(fft_plan->mlu_addrs.dft_matrix_2d,
                           fft_plan->dft_matrix_2d, DFT_TABLE_SIZE,
                           cnrtMemcpyHostToDev));
-  } else if (fft_plan->fft_strategy == CNFFT_FUNC_BATCH_STRIDE_2D) {
-    size_t reservespace_offset = 0;
-    fft_plan->mlu_addrs.dft_matrix =
-        (uint8_t *)fft_plan->reservespace_addr + reservespace_offset;
-    reservespace_offset += CPX_TYPE_SIZE * _n1 * _n1;
+  } else if (fft_plan->fft_strategy == CNFFT_FUNC_MANY_DIST1_2D) {
+    switch (fft_plan->fft_type) {
+      case CNFFT_HALF2COMPLEX_HALF:
+      case CNFFT_FLOAT2COMPLEX_FLOAT: {
+        // R2C
+        size_t reservespace_offset = 0;
+        fft_plan->mlu_addrs.dft_matrix =
+            (uint8_t *)fft_plan->reservespace_addr + reservespace_offset;
+        reservespace_offset += CPX_TYPE_SIZE * (_n1 / 2 + 1) * _n1;
 
-    fft_plan->mlu_addrs.dft_matrix_2d =
-        (uint8_t *)fft_plan->reservespace_addr + reservespace_offset;
-    reservespace_offset += CPX_TYPE_SIZE * _n0 * _n0;
+        fft_plan->mlu_addrs.dft_matrix_2d =
+            (uint8_t *)fft_plan->reservespace_addr + reservespace_offset;
+        reservespace_offset += CPX_TYPE_SIZE * _n0 * _n0;
 
-    CNRT_CHECK(cnrtMemcpy(fft_plan->mlu_addrs.dft_matrix, fft_plan->dft_matrix,
-                          CPX_TYPE_SIZE * _n1 * _n1, cnrtMemcpyHostToDev));
-    CNRT_CHECK(cnrtMemcpy(fft_plan->mlu_addrs.dft_matrix_2d,
-                          fft_plan->dft_matrix_2d, CPX_TYPE_SIZE * _n0 * _n0,
-                          cnrtMemcpyHostToDev));
+        CNRT_CHECK(cnrtMemcpy(
+            fft_plan->mlu_addrs.dft_matrix, fft_plan->dft_matrix,
+            CPX_TYPE_SIZE * (_n1 / 2 + 1) * _n1, cnrtMemcpyHostToDev));
+        CNRT_CHECK(cnrtMemcpy(fft_plan->mlu_addrs.dft_matrix_2d,
+                              fft_plan->dft_matrix_2d,
+                              CPX_TYPE_SIZE * _n0 * _n0, cnrtMemcpyHostToDev));
+      } break;
+      case CNFFT_COMPLEX_HALF2COMPLEX_HALF:
+      case CNFFT_COMPLEX_FLOAT2COMPLEX_FLOAT: {
+        // C2C
+        size_t reservespace_offset = 0;
+        fft_plan->mlu_addrs.dft_matrix =
+            (uint8_t *)fft_plan->reservespace_addr + reservespace_offset;
+        reservespace_offset += CPX_TYPE_SIZE * _n1 * _n1;
+
+        fft_plan->mlu_addrs.dft_matrix_2d =
+            (uint8_t *)fft_plan->reservespace_addr + reservespace_offset;
+        reservespace_offset += CPX_TYPE_SIZE * _n0 * _n0;
+
+        CNRT_CHECK(cnrtMemcpy(fft_plan->mlu_addrs.dft_matrix,
+                              fft_plan->dft_matrix, CPX_TYPE_SIZE * _n1 * _n1,
+                              cnrtMemcpyHostToDev));
+        CNRT_CHECK(cnrtMemcpy(fft_plan->mlu_addrs.dft_matrix_2d,
+                              fft_plan->dft_matrix_2d,
+                              CPX_TYPE_SIZE * _n0 * _n0, cnrtMemcpyHostToDev));
+      }; break;
+      default: {
+        LOG(ERROR) << make_plan_api << ": invalid 2d fft type.";
+        status = MLUOP_STATUS_NOT_SUPPORTED;
+        return status;
+      }
+    }
   }
   return status;
 }
@@ -900,9 +933,11 @@ static void configureFFT2dWorkspaceAddrs(mluOpHandle_t handle,
   size_t CPX_TYPE_SIZE = 0;
 
   switch (fft_plan->fft_type) {
+    case CNFFT_HALF2COMPLEX_HALF:
     case CNFFT_COMPLEX_HALF2COMPLEX_HALF: {
       CPX_TYPE_SIZE = 2 * 2;
     } break;
+    case CNFFT_FLOAT2COMPLEX_FLOAT:
     case CNFFT_COMPLEX_FLOAT2COMPLEX_FLOAT: {
       CPX_TYPE_SIZE = 4 * 2;
     }; break;
@@ -911,12 +946,11 @@ static void configureFFT2dWorkspaceAddrs(mluOpHandle_t handle,
       return;
     }
   }
-
   int batch = fft_plan->batch;
   int _n0 = fft_plan->n[0];
   int _n1 = fft_plan->n[1];
 
-  if (fft_plan->fft_strategy == CNFFT_FUNC_BATCH_STRIDE_2D) {
+  if (fft_plan->fft_strategy == CNFFT_FUNC_MANY_DIST1_2D) {
     // rr ri ir ii
     size_t buffer_size = batch * CPX_TYPE_SIZE * _n0 * _n1 * 2;
 
@@ -1714,12 +1748,34 @@ mluOpStatus_t execFFTc2c2d(mluOpHandle_t handle, mluOpFFTPlan_t fft_plan,
     INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
   }
 
-  if (fft_plan->fft_strategy == CNFFT_FUNC_BATCH_STRIDE_2D) {
+  if (fft_plan->fft_strategy == CNFFT_FUNC_MANY_DIST1_2D) {
     status = computeFFT2dMatMulRow(handle, fft_plan, scale_factor, direction);
     INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
 
     status =
         computeFFT2dMatMulColumn(handle, fft_plan, scale_factor, direction);
+    INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
+  }
+  return status;
+}
+
+mluOpStatus_t execFFTr2c2d(mluOpHandle_t handle, mluOpFFTPlan_t fft_plan,
+                           const float scale_factor, int direction) {
+  std::string api = "[execFFTr2c2d]";
+
+  VLOG(5) << "launch r2c fft2d";
+  mluOpStatus_t status = MLUOP_STATUS_SUCCESS;
+  if (fft_plan->fft_strategy == CNFFT_FUNC_TWO_LEVEL_STOCKHAM) {
+    // CNFFT_FUNC_TWO_LEVEL_STOCKHAM
+  }
+
+  if (fft_plan->fft_strategy == CNFFT_FUNC_MANY_DIST1_2D) {
+    status =
+        computeFFT2dMatMulRowR2C(handle, fft_plan, scale_factor, direction);
+    INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
+
+    status =
+        computeFFT2dMatMulColumnR2C(handle, fft_plan, scale_factor, direction);
     INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
   }
   return status;
@@ -1783,7 +1839,23 @@ mluOpStatus_t execFFT2d(mluOpHandle_t handle, const mluOpFFTPlan_t fft_plan,
   configureFFT2dWorkspaceAddrs(handle, fft_plan, (void *)input, workspace,
                                output);
 
-  status = execFFTc2c2d(handle, fft_plan, scale_factor, direction);
+  switch (fft_plan->fft_type) {
+    case CNFFT_HALF2COMPLEX_HALF:
+    case CNFFT_FLOAT2COMPLEX_FLOAT: {
+      // R2C
+      status = execFFTr2c2d(handle, fft_plan, scale_factor, direction);
+    } break;
+    case CNFFT_COMPLEX_HALF2COMPLEX_HALF:
+    case CNFFT_COMPLEX_FLOAT2COMPLEX_FLOAT: {
+      // C2C
+      status = execFFTc2c2d(handle, fft_plan, scale_factor, direction);
+    }; break;
+    default: {
+      LOG(ERROR) << api << ": invalid 2d fft type.";
+      status = MLUOP_STATUS_NOT_SUPPORTED;
+      return status;
+    }
+  }
 
   INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
 
@@ -1854,54 +1926,6 @@ mluOpStatus_t computeFFT2dMatMulColumn(mluOpHandle_t handle,
   float alpha = 1.0;
   float beta = 0.0;
 
-  // {
-  //   printf("1858\n");
-  //   float *buf = new float[n0 * n0 * 2];
-  //   CNRT_CHECK(cnrtMemcpy(buf, dft_matrix_addr, n0 * n0 * 2 * sizeof(float),
-  //                         cnrtMemcpyDevToHost));
-  //   for (int i = 0; i < n0; i++) {
-  //     for (int j = 0; j < n0; j++) {
-  //       printf("dft (%f, %f)  ", (buf)[(i * n0 + j)],
-  //              (buf)[(i * n0 + j) + n0 * n0]);
-  //     }
-  //     printf("\n");
-  //   }
-  //   if(buf == nullptr)
-  //   {
-  //     printf("1975 null\n");
-
-  //   }else{
-  //     printf("1977 delete\n");
-  //     delete buf;
-  //   }
-  // }
-
-  // {
-  //   cnrtQueueSync(handle->queue);
-  //   printf("1881 in\n");
-  //   float *buf = new float[n0 * n1 * batch * 2];
-  //   CNRT_CHECK(cnrtMemcpy(buf, in_addr,
-  //                         n0 * n1 * batch * 2 * sizeof(float),
-  //                         cnrtMemcpyDevToHost));
-
-  //   for (int i = 0; i < n0; i++) {
-  //     for (int j = 0; j < n1 * batch; j++) {
-  //       printf("r i(%f, %f)  ", (buf)[(i * n1 * batch + j) * 2],
-  //              (buf)[(i * n1 * batch + j) * 2 + 1]);
-
-  //     }
-  //     printf("\n");
-  //   }
-  //   if(buf == nullptr)
-  //   {
-  //     printf("2074 null\n");
-
-  //   }else{
-  //     delete buf;
-  //   }
-  //   cnrtQueueSync(handle->queue);
-  // }
-
   CALL_CNNL(cnnlMatMul(cnnl_handle, false, false, &alpha, cnnl_a_desc,
                        dft_matrix_addr, cnnl_b_desc, in_addr, &beta,
                        cnnl_c_desc, out_addr));
@@ -1914,59 +1938,6 @@ mluOpStatus_t computeFFT2dMatMulColumn(mluOpHandle_t handle,
   DESTROY_CNNL_HANDLE(cnnl_handle);
   cnrtQueueSync(handle->queue);
 
-  // {
-  //   cnrtQueueSync(handle->queue);
-  //   printf("1870\n");
-  //   float *buf = new float[n0 * n1 * batch * 4];
-  //   CNRT_CHECK(cnrtMemcpy(buf, fft_plan->mlu_addrs.buffer_out,
-  //                         n0 * n1 * batch * 4 * sizeof(float),
-  //                         cnrtMemcpyDevToHost));
-
-  //   for (int i = 0; i < 12; i++) {
-  //     for (int j = 0; j < 2; j++) {
-  //       printf("r i(%f, %f)  ", (buf)[(i * 2 + j) * 2],
-  //              (buf)[(i * 2 + j) * 2 + 1]);
-
-  //     }
-  //     printf("\n");
-  //   }
-  //   if(buf == nullptr)
-  //   {
-  //     printf("2074 null\n");
-
-  //   }else{
-  //     delete buf;
-  //   }
-  //   cnrtQueueSync(handle->queue);
-  // }
-
-  // {
-  //   printf("1895 n0: %d\n", n0);
-  //   float *buf = new float[n0 * n1 * batch * 4];
-  //   CNRT_CHECK(cnrtMemcpy(buf, fft_plan->mlu_addrs.buffer_out,
-  //                         n0 * n1 * batch * 4 * sizeof(float),
-  //                         cnrtMemcpyDevToHost));
-
-  //   for (int i = 0; i < n0; i++) {
-  //     for (int j = 0; j < n1 * batch; j++) {
-  //       printf("[%d],[%d] rr ri(%f, %f)  ", i, j, (buf)[i * n1 *batch * 2 + j
-  //       * 2],
-  //              (buf)[i *n1 * batch * 2 + j * 2 + 1]);
-  //       printf("[%d],[%d] ir ii(%f, %f)  ", i, j, (buf)[i * n1 *batch * 2 + j
-  //       * 2 + 2 * n0 * n1 *batch ],
-  //              (buf)[i * n1 *batch * 2 + j * 2 + 2 * n0 * n1 *batch + 1]);
-  //     }
-  //     printf("\n");
-  //   }
-  //   if(buf == nullptr)
-  //   {
-  //     printf("2024 null\n");
-
-  //   }else{
-  //     delete buf;
-  //   }
-  // }
-
   cnrtDim3_t k_dim;
   cnrtFunctionType_t k_type;
   policyFunc(handle, &k_dim, &k_type);
@@ -1975,30 +1946,6 @@ mluOpStatus_t computeFFT2dMatMulColumn(mluOpHandle_t handle,
                      fft_plan->mlu_addrs.buffer_out, n0 * n1 * batch,
                      in_e_dtype);
   cnrtQueueSync(handle->queue);
-
-  // {
-  //   printf("1877\n");
-  //   float *buf = new float[n0 * n1 * batch * 2];
-  //   CNRT_CHECK(cnrtMemcpy(buf, fft_plan->mlu_addrs.output,
-  //                         n0 * n1 * batch * 2 * sizeof(float),
-  //                         cnrtMemcpyDevToHost));
-
-  //   for (int i = 0; i < n0; i++) {
-  //     for (int j = 0; j < n1 * batch; j++) {
-  //       printf("r i(%f, %f)  ", (buf)[(i * n1 * batch + j) * 2],
-  //              (buf)[(i * n1 * batch + j) * 2 + 1]);
-
-  //     }
-  //     printf("\n");
-  //   }
-  //   if(buf == nullptr)
-  //   {
-  //     printf("2074 null\n");
-
-  //   }else{
-  //     delete buf;
-  //   }
-  // }
 
   return status;
 }
@@ -2077,73 +2024,9 @@ mluOpStatus_t computeFFT2dMatMulRow(mluOpHandle_t handle,
   float alpha = 1.0;
   float beta = 0.0;
 
-  //   cnnlMatMulDescriptor* matmul_desc;
-  //     CALL_CNNL(cnnlMatMulDescCreate(matmul_desc));
-  //     CALL_CNNL(cnnlSetMatMulDescAttr(matmul_desc, attr, ));
-  // cnnlSetMatMulDescAttr(cnnlMatMulDescriptor_t matmul_desc,
-  // cnnlMatMulDescAttribute_t attr,
-  // const void *buf,
-  // size_t size_in_bytes)
-  //     CALL_CNNL(cnnlMatMulDescDestroy(matmul_desc));
-
-  //   size_t workspace_size = 0;
-  // cnnlGetBatchMatMulBCastWorkspaceSize(cnnl_handle,cnnl_a_desc,cnnl_b_desc,cnnl_c_desc,
-  //  &workspace_size);
-  //   printf("workspace_size = %ld\n", workspace_size);
-
-  // {
-  //   cnrtQueueSync(handle->queue);
-  //   printf("2096 in row\n");
-  //   float *buf = new float[n0 * n1 * batch * 2];
-  //   CNRT_CHECK(cnrtMemcpy(buf, in_addr,
-  //                         n0 * n1 * batch * 2 * sizeof(float),
-  //                         cnrtMemcpyDevToHost));
-
-  //   for (int i = 0; i < n0; i++) {
-  //     for (int j = 0; j < n1 * batch; j++) {
-  //       printf("r i(%f, %f)  ", (buf)[(i * n1 * batch + j) * 2],
-  //              (buf)[(i * n1 * batch + j) * 2 + 1]);
-
-  //     }
-  //     printf("\n");
-  //   }
-  //   if(buf == nullptr)
-  //   {
-  //     printf("2074 null\n");
-
-  //   }else{
-  //     delete buf;
-  //   }
-  //   cnrtQueueSync(handle->queue);
-  // }
-
   CALL_CNNL(cnnlBatchMatMulBCast(cnnl_handle, false, false, cnnl_a_desc,
                                  dft_matrix_addr, cnnl_b_desc, in_addr, NULL, 0,
                                  cnnl_c_desc, out_addr));
-
-  // cnrtQueueSync(cnnl_handle);
-
-  // {
-  //   printf("1966\n");
-  //   float *buf = new float[n1 * n1 * 2];
-  //   CNRT_CHECK(cnrtMemcpy(buf, dft_matrix_addr, n1 * n1 * 2 * sizeof(float),
-  //                         cnrtMemcpyDevToHost));
-  //   for (int i = 0; i < n1; i++) {
-  //     for (int j = 0; j < n1; j++) {
-  //       printf("dft (%f, %f)  ", (buf)[(i * n1 + j)],
-  //              (buf)[(i * n1 + j) + n1 * n1]);
-  //     }
-  //     printf("\n");
-  //   }
-  //   if(buf == nullptr)
-  //   {
-  //     printf("1975 null\n");
-
-  //   }else{
-  //     printf("1977 delete\n");
-  //     delete buf;
-  //   }
-  // }
 
   // destroy cnnl descriptor
   DESTROY_CNNL_TENSOR_DESCRIPTOR(cnnl_a_desc);
@@ -2157,114 +2040,93 @@ mluOpStatus_t computeFFT2dMatMulRow(mluOpHandle_t handle,
   cnrtFunctionType_t k_type;
   policyFunc(handle, &k_dim, &k_type);
 
-  // float* buf = new float [n0*n0*2];
-  // CNRT_CHECK(cnrtMemcpy(buf, fft_plan->mlu_addrs.dft_matrix_2d,
-  //                       n0*n0*2*sizeof(float), cnrtMemcpyDevToHost));
-
-  // for(int i = 0; i <3; i ++) {
-  //     for(int j = 0; j <2; j ++) {
-
-  //   printf("(%f, %f)  ", (buf)[(i*n0+j)],(buf)[(i*n0+j)+n0*n0]);
-  // }
-  // printf("\n");
-  // }
-  // delete buf;
-
-  // {
-  //   printf("1991 n1: %d\n", n1);
-  //   float *buf = new float[n0 * n1 * batch * 4];
-  //   CNRT_CHECK(cnrtMemcpy(buf, fft_plan->mlu_addrs.buffer_out,
-  //                         n0 * n1 * batch * 4 * sizeof(float),
-  //                         cnrtMemcpyDevToHost));
-
-  //   for (int i = 0; i < n1; i++) {
-  //     for (int j = 0; j < batch; j++) {
-  //       printf("[%d],[%d] rr ri(%f, %f)  ", i, j, (buf)[i * batch * 2 + j *
-  //       2],
-  //              (buf)[i * batch * 2 + j * 2 + 1]);
-  //       printf("[%d],[%d] ir ii(%f, %f)  ", i, j, (buf)[i * batch * 2 + j * 2
-  //       + 2 * n1 *batch],
-  //              (buf)[i * batch * 2 + j * 2 + 2 * n1 *batch + 1]);
-  //     }
-  //     printf("\n");
-  //   }
-  //   if(buf == nullptr)
-  //   {
-  //     printf("2024 null\n");
-
-  //   }else{
-  //     delete buf;
-  //   }
-  // }
-
-  // {
-  //   printf("2041 n1: %d\n", n1);
-  //   float *buf = new float[n0 * n1 * batch * 4];
-  //   CNRT_CHECK(cnrtMemcpy(buf, fft_plan->mlu_addrs.buffer_out,
-  //                         n0 * n1 * batch * 4 * sizeof(float),
-  //                         cnrtMemcpyDevToHost));
-
-  //   for (int i = 0; i < n0; i++) {
-  //     for (int j = 0; j < n1 * batch; j++) {
-  //       printf("[%d],[%d] rr ri(%f, %f)  ", i, j, (buf)[(i * (n1 * batch * 2)
-  //       + j) * 2],
-  //              (buf)[(i * (n1 * batch * 2) + j) * 2 + 1]);
-  //       printf("[%d],[%d] ir ii(%f, %f)  ", i, j, (buf)[(i * (n1 * batch * 2)
-  //       + j) * 2 + 2 * n1 * batch],
-  //              (buf)[(i * (n1 * batch * 2) + j) * 2 + 1 + 2 * n1 * batch]);
-  //     }
-  //     printf("\n");
-  //   }
-  //   if(buf == nullptr)
-  //   {
-  //     printf("2024 null\n");
-
-  //   }else{
-  //     delete buf;
-  //   }
-  // }
-
-  // {
-  //   printf("2011\n");
-  //   float *buf = new float[n0 * n1 * batch * 2];
-  //   CNRT_CHECK(cnrtMemcpy(buf, fft_plan->mlu_addrs.buffer_in,
-  //                         n0 * n1 * batch * 2 * sizeof(float),
-  //                         cnrtMemcpyDevToHost));
-
-  //   for (int i = 0; i < 12; i++) {
-  //     for (int j = 0; j < 2; j++) {
-  //       printf("r i(%f, %f)  ", (buf)[(i * 2 + j) * 2],
-  //              (buf)[(i * 2 + j) * 2 + 1]);
-  //     }
-  //     printf("\n");
-  //   }
-  //   if(buf == nullptr)
-  //   {
-  //     printf("2045 null\n");
-
-  //   }else{
-  //     delete buf;
-  //   }
-  //   cnrtQueueSync(handle->queue);
-  // }
-
   kernelFFTBatchConjMerge(
       k_dim, k_type, handle->queue, fft_plan->mlu_addrs.buffer_in,
       fft_plan->mlu_addrs.buffer_out, n1 * batch, n0, in_e_dtype);
 
   cnrtQueueSync(handle->queue);
 
-  // {
-  //   printf("2016\n");
-  //   float *buf = new float[n0 * n1 * batch * 2];
-  //   CNRT_CHECK(cnrtMemcpy(buf, fft_plan->mlu_addrs.buffer_in,
-  //                         n0 * n1 * batch * 2 * sizeof(float),
-  //                         cnrtMemcpyDevToHost));
+  return status;
+}
 
-  //   for (int i = 0; i < 12; i++) {
-  //     for (int j = 0; j < 2; j++) {
-  //       printf("r i(%f, %f)  ", (buf)[(i * 2 + j) * 2],
-  //              (buf)[(i * 2 + j) * 2 + 1]);
+// in: [2][n0][2][n1][batch]
+mluOpStatus_t computeFFT2dMatMulColumnR2C(mluOpHandle_t handle,
+                                          mluOpFFTPlan_t fft_plan,
+                                          const float scale_factor,
+                                          int direction) {
+  std::string api = "[computeFFT2dMatMulColumnR2C]";
+  mluOpStatus_t status = MLUOP_STATUS_SUCCESS;
+
+  mluOpDataType_t in_e_dtype = fft_plan->execution_dtype;
+  int batch = fft_plan->batch;
+  int n0 = fft_plan->n[0];
+  int n1 = fft_plan->n[1];
+
+  void *dft_matrix_addr = fft_plan->mlu_addrs.dft_matrix_2d;
+  void *in_addr = fft_plan->mlu_addrs.buffer_in;
+  void *out_addr = fft_plan->mlu_addrs.buffer_out;
+  // void *out_addr = fft_plan->mlu_addrs.output;
+
+  // out[n0 * 2][(n1/2+1)*2][batch] = W[n0 * 2][n0] * In[n0][(n1/2+1)*2][batch]
+  const int m = n0 * 2, k = n0, n = (n1 / 2 + 1) * 2 * batch;
+
+  // create descriptor
+  mluOpTensorDescriptor_t a_desc = nullptr;
+  mluOpTensorDescriptor_t b_desc = nullptr;
+  mluOpTensorDescriptor_t c_desc = nullptr;
+  status = mluOpCreateTensorDescriptor(&a_desc);
+  INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
+  status = mluOpCreateTensorDescriptor(&b_desc);
+  INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
+  status = mluOpCreateTensorDescriptor(&c_desc);
+  INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
+
+  // set descriptor
+  int64_t a_dims[2] = {m, k};
+  int64_t b_dims[2] = {k, n};
+  int64_t c_dims[2] = {m, n};
+
+  status = mluOpSetTensorDescriptor_v2(a_desc, MLUOP_LAYOUT_ARRAY, in_e_dtype,
+                                       2, a_dims);
+  INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
+  status = mluOpSetTensorDescriptorOnchipDataType(a_desc, in_e_dtype);
+  INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
+  status = mluOpSetTensorDescriptor_v2(b_desc, MLUOP_LAYOUT_ARRAY, in_e_dtype,
+                                       2, b_dims);
+  INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
+  status = mluOpSetTensorDescriptorOnchipDataType(b_desc, in_e_dtype);
+  INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
+  status = mluOpSetTensorDescriptor_v2(c_desc, MLUOP_LAYOUT_ARRAY, in_e_dtype,
+                                       2, c_dims);
+  INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
+  status = mluOpSetTensorDescriptorOnchipDataType(c_desc, in_e_dtype);
+  INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
+
+  DEFINE_CREATE_AND_SET_CNNL_HANDLE(handle,
+                                    cnnl_handle);  // convert to cnnl_handle
+
+  // convert to cnnl_tensor_descriptor
+  DEFINE_CREATE_AND_SET_CNNL_TENSOR_DESCRIPTOR(a_desc, cnnl_a_desc);
+  DEFINE_CREATE_AND_SET_CNNL_TENSOR_DESCRIPTOR(b_desc, cnnl_b_desc);
+  DEFINE_CREATE_AND_SET_CNNL_TENSOR_DESCRIPTOR(c_desc, cnnl_c_desc);
+
+  // c_desc->onchip_dtype = MLUOP_DTYPE_FLOAT;
+  c_desc->onchip_dtype = in_e_dtype;
+  float alpha = 1.0;
+  float beta = 0.0;
+
+  // {
+  //   cnrtQueueSync(handle->queue);
+  //   printf("2120\n");
+  //   float *buf = new float[m * k];
+  //   CNRT_CHECK(cnrtMemcpy(buf, dft_matrix_addr,
+  //                         m * k * sizeof(float),
+  //                         cnrtMemcpyDevToHost));
+  //   cnrtQueueSync(handle->queue);
+  //   for (int i = 0; i < m; i++) {
+  //     for (int j = 0; j < k; j++) {
+  //       printf("r (%f)  ", (buf)[(i * (k) + j)]);
+
   //     }
   //     printf("\n");
   //   }
@@ -2276,6 +2138,252 @@ mluOpStatus_t computeFFT2dMatMulRow(mluOpHandle_t handle,
   //     delete buf;
   //   }
   // }
+
+  CALL_CNNL(cnnlMatMul(cnnl_handle, false, false, &alpha, cnnl_a_desc,
+                       dft_matrix_addr, cnnl_b_desc, in_addr, &beta,
+                       cnnl_c_desc, out_addr));
+
+  // destroy cnnl descriptor
+  DESTROY_CNNL_TENSOR_DESCRIPTOR(cnnl_a_desc);
+  DESTROY_CNNL_TENSOR_DESCRIPTOR(cnnl_b_desc);
+  DESTROY_CNNL_TENSOR_DESCRIPTOR(cnnl_c_desc);
+
+  DESTROY_CNNL_HANDLE(cnnl_handle);
+  cnrtQueueSync(handle->queue);
+
+  cnrtDim3_t k_dim;
+  cnrtFunctionType_t k_type;
+  policyFunc(handle, &k_dim, &k_type);
+
+  // {
+  //   cnrtQueueSync(handle->queue);
+  //   printf("2136\n");
+  //   float *buf = new float[m * n];
+  //   CNRT_CHECK(cnrtMemcpy(buf, fft_plan->mlu_addrs.buffer_out,
+  //                         m * n * sizeof(float),
+  //                         cnrtMemcpyDevToHost));
+  //   cnrtQueueSync(handle->queue);
+  //   for (int i = 0; i < m; i++) {
+  //     for (int j = 0; j < n; j++) {
+  //       printf("r i(%f, %f)  ", (buf)[(i * (n) + j) * 2],
+  //              (buf)[(i * (n) + j) * 2 + 1]);
+  //     }
+  //     printf("\n");
+  //   }
+  //   if(buf == nullptr)
+  //   {
+  //     printf("2074 null\n");
+
+  //   }else{
+  //     delete buf;
+  //   }
+  // }
+
+  // {
+  //   cnrtQueueSync(handle->queue);
+  //   printf("2185\n");
+  //   float *buf = new float[m * n];
+  //   CNRT_CHECK(cnrtMemcpy(buf, fft_plan->mlu_addrs.buffer_out,
+  //                         m * n * sizeof(float),
+  //                         cnrtMemcpyDevToHost));
+  //   cnrtQueueSync(handle->queue);
+  //   for (int i = 0; i < m; i++) {
+  //     for (int j = 0; j < n; j++) {
+  //       printf("[%d][%d]: (%f)  ",i, j, (buf)[(i * (n) + j)]);
+  //     }
+  //     printf("\n");
+  //   }
+  //   if(buf == nullptr)
+  //   {
+  //     printf("2074 null\n");
+
+  //   }else{
+  //     delete buf;
+  //   }
+  // }
+
+  kernelFFTBatchConjMergeR2C(
+      k_dim, k_type, handle->queue, fft_plan->mlu_addrs.output,
+      fft_plan->mlu_addrs.buffer_out, (n1 / 2 + 1) * batch, n0, in_e_dtype);
+  cnrtQueueSync(handle->queue);
+
+  // {
+  //   cnrtQueueSync(handle->queue);
+  //   printf("2136\n");
+  //   float *buf = new float[n0 * n];
+  //   CNRT_CHECK(cnrtMemcpy(buf, fft_plan->mlu_addrs.output,
+  //                         n0 * n * sizeof(float),
+  //                         cnrtMemcpyDevToHost));
+  //   cnrtQueueSync(handle->queue);
+  //   for (int i = 0; i < n0; i++) {
+  //     int ld = (n1/2+1) * batch;
+  //     for (int j = 0; j < ld; j++) {
+  //       printf("[%d][%d]: (%f, %f)  ",i, j, (buf)[(i * (ld) + j) *2],
+  //       (buf)[((i * (ld) + j) *2 + 1)]);
+  //     }
+  //     printf("\n");
+  //   }
+  //   if(buf == nullptr)
+  //   {
+  //     printf("2074 null\n");
+
+  //   }else{
+  //     delete buf;
+  //   }
+  // }
+
+  return status;
+}
+
+mluOpStatus_t computeFFT2dMatMulRowR2C(mluOpHandle_t handle,
+                                       mluOpFFTPlan_t fft_plan,
+                                       const float scale_factor,
+                                       int direction) {
+  std::string api = "[computeFFT2dMatMulRowR2C]";
+  mluOpStatus_t status = MLUOP_STATUS_SUCCESS;
+
+  mluOpDataType_t in_e_dtype = fft_plan->execution_dtype;
+  int batch = fft_plan->batch;
+  int n0 = fft_plan->n[0];
+  int n1 = fft_plan->n[1];
+
+  printf("%d, %d, %d\n", batch, n0, n1);
+  void *dft_matrix_addr = fft_plan->mlu_addrs.dft_matrix;
+  void *in_addr = fft_plan->mlu_addrs.input;
+  void *out_addr = fft_plan->mlu_addrs.buffer_in;
+  // void *out_addr = fft_plan->mlu_addrs.output;
+
+  // out[n0][(n1/2+1)*2][batch] = W[(n1/2+1) * 2][n1] * In[n0][n1][batch]
+  const int m = (n1 / 2 + 1) * 2, k = n1, n = batch;
+
+  // create descriptor
+  mluOpTensorDescriptor_t a_desc = nullptr;
+  mluOpTensorDescriptor_t b_desc = nullptr;
+  mluOpTensorDescriptor_t c_desc = nullptr;
+  status = mluOpCreateTensorDescriptor(&a_desc);
+  INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
+  status = mluOpCreateTensorDescriptor(&b_desc);
+  INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
+  status = mluOpCreateTensorDescriptor(&c_desc);
+  INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
+
+  // set descriptor
+  int64_t a_dims[2] = {m, k};
+  int64_t b_dims[3] = {n0, k, n};
+  int64_t c_dims[3] = {n0, m, n};
+
+  status = mluOpSetTensorDescriptor_v2(a_desc, MLUOP_LAYOUT_ARRAY, in_e_dtype,
+                                       2, a_dims);
+  INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
+  status = mluOpSetTensorDescriptorOnchipDataType(a_desc, in_e_dtype);
+  INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
+  status = mluOpSetTensorDescriptor_v2(b_desc, MLUOP_LAYOUT_ARRAY, in_e_dtype,
+                                       3, b_dims);
+  INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
+  status = mluOpSetTensorDescriptorOnchipDataType(b_desc, in_e_dtype);
+  INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
+  status = mluOpSetTensorDescriptor_v2(c_desc, MLUOP_LAYOUT_ARRAY, in_e_dtype,
+                                       3, c_dims);
+  INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
+  status = mluOpSetTensorDescriptorOnchipDataType(c_desc, in_e_dtype);
+  INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
+
+  DEFINE_CREATE_AND_SET_CNNL_HANDLE(handle,
+                                    cnnl_handle);  // convert to cnnl_handle
+
+  // convert to cnnl_tensor_descriptor
+  DEFINE_CREATE_AND_SET_CNNL_TENSOR_DESCRIPTOR(a_desc, cnnl_a_desc);
+  DEFINE_CREATE_AND_SET_CNNL_TENSOR_DESCRIPTOR(b_desc, cnnl_b_desc);
+  DEFINE_CREATE_AND_SET_CNNL_TENSOR_DESCRIPTOR(c_desc, cnnl_c_desc);
+
+  // c_desc->onchip_dtype = MLUOP_DTYPE_FLOAT;
+  c_desc->onchip_dtype = in_e_dtype;
+  float alpha = 1.0;
+  float beta = 0.0;
+
+  // {
+  //   cnrtQueueSync(handle->queue);
+  //   printf("2235\n");
+  //   float *buf = new float[m * k];
+  //   CNRT_CHECK(cnrtMemcpy(buf, dft_matrix_addr,
+  //                         k * n * sizeof(float),
+  //                         cnrtMemcpyDevToHost));
+  //   cnrtQueueSync(handle->queue);
+  //   for (int i = 0; i < m; i++) {
+  //     for (int j = 0; j < k; j++) {
+  //       printf("r (%f)  ", (buf)[(i * (k) + j)]);
+
+  //     }
+  //     printf("\n");
+  //   }
+  //   if(buf == nullptr)
+  //   {
+  //     printf("2074 null\n");
+
+  //   }else{
+  //     delete buf;
+  //   }
+  // }
+
+  // {
+  //   cnrtQueueSync(handle->queue);
+  //   printf("2235\n");
+  //   float *buf = new float[n0* k * n];
+  //   CNRT_CHECK(cnrtMemcpy(buf, in_addr,
+  //                         n0* k * n * sizeof(float),
+  //                         cnrtMemcpyDevToHost));
+  //   cnrtQueueSync(handle->queue);
+  //   for (int i = 0; i < n0 * k; i++) {
+  //     for (int j = 0; j < n; j++) {
+  //       printf("r (%f)  ", (buf)[(i * (n) + j)]);
+
+  //     }
+  //     printf("\n");
+  //   }
+  //   if(buf == nullptr)
+  //   {
+  //     printf("2074 null\n");
+
+  //   }else{
+  //     delete buf;
+  //   }
+  // }
+
+  CALL_CNNL(cnnlBatchMatMulBCast(cnnl_handle, false, false, cnnl_a_desc,
+                                 dft_matrix_addr, cnnl_b_desc, in_addr, NULL, 0,
+                                 cnnl_c_desc, out_addr));
+
+  // {
+  //   cnrtQueueSync(handle->queue);
+  //   printf("2239\n");
+  //   float *buf = new float[n0 * m * n];
+  //   CNRT_CHECK(cnrtMemcpy(buf, out_addr,
+  //                         n0 * m * n * sizeof(float),
+  //                         cnrtMemcpyDevToHost));
+  //   cnrtQueueSync(handle->queue);
+  //   for (int i = 0; i < n0; i++) {
+  //     for (int j = 0; j < m/2 * n; j++) {
+  //       printf("r i(%f, %f)  ", (buf)[(i * (m *n) + j)],
+  //              (buf)[(i * (m *n) + j)  + (m/2 *n)]);
+  //     }
+  //     printf("\n");
+  //   }
+  //   if(buf == nullptr)
+  //   {
+  //     printf("2074 null\n");
+
+  //   }else{
+  //     delete buf;
+  //   }
+  // }
+
+  // destroy cnnl descriptor
+  DESTROY_CNNL_TENSOR_DESCRIPTOR(cnnl_a_desc);
+  DESTROY_CNNL_TENSOR_DESCRIPTOR(cnnl_b_desc);
+  DESTROY_CNNL_TENSOR_DESCRIPTOR(cnnl_c_desc);
+
+  DESTROY_CNNL_HANDLE(cnnl_handle);
+  cnrtQueueSync(handle->queue);
 
   return status;
 }

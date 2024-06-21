@@ -106,7 +106,7 @@ typedef enum {
       4,  // a recursive FFT algorithm for n = 2^m * L; It saves the space
           // occupied by the w matrix. And, compared to DFT, the time
           // complexity is reduced from o(n^2) to o(n * logn)
-  CNFFT_FUNC_BATCH_STRIDE_2D =
+  CNFFT_FUNC_MANY_DIST1_2D =
       5,  // directly matmul strategy for [n0, n1, batch] pattern.
   CNFFT_FUNC_TWO_LEVEL_STOCKHAM = 6,  // an iterative FFT algorithm for n = r^l.
 } FFTStrategy;
@@ -327,6 +327,10 @@ mluOpStatus_t MLUOP_WIN_API kernelFFTBatchConjMerge(
     cnrtDim3_t k_dim, cnrtFunctionType_t k_type, cnrtQueue_t queue,
     void *output, void *input, int len, int batch, int dtype);
 
+mluOpStatus_t MLUOP_WIN_API kernelFFTBatchConjMergeR2C(
+    cnrtDim3_t k_dim, cnrtFunctionType_t k_type, cnrtQueue_t queue,
+    void *output, void *input, int len, int batch, int dtype);
+
 mluOpStatus_t computeFFT2dMatMulRow(mluOpHandle_t handle,
                                     mluOpFFTPlan_t fft_plan,
                                     const float scale_factor, int direction);
@@ -334,4 +338,13 @@ mluOpStatus_t computeFFT2dMatMulRow(mluOpHandle_t handle,
 mluOpStatus_t computeFFT2dMatMulColumn(mluOpHandle_t handle,
                                        mluOpFFTPlan_t fft_plan,
                                        const float scale_factor, int direction);
+
+mluOpStatus_t computeFFT2dMatMulRowR2C(mluOpHandle_t handle,
+                                       mluOpFFTPlan_t fft_plan,
+                                       const float scale_factor, int direction);
+
+mluOpStatus_t computeFFT2dMatMulColumnR2C(mluOpHandle_t handle,
+                                          mluOpFFTPlan_t fft_plan,
+                                          const float scale_factor,
+                                          int direction);
 #endif  // KERNELS_FFT_FFT_H_
