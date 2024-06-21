@@ -48,20 +48,20 @@ __mlu_func__ void computeConjMerge(DT *output, DT *input, int len) {
   // repeat_num = t_len;
 
   int nram_buf_offset = 0;
-  const int max_para_num = 1000;
+  const int max_para_num = 1000 > t_len ? t_len : 1000;
   repeat_num = (t_len + max_para_num - 1) / max_para_num;
 
   DT *nram_para_load_rr_ri_ping = (DT *)nram_buffer + nram_buf_offset;
-  nram_buf_offset += max_para_num * 2;  // complex
+  nram_buf_offset += max_para_num * 2;
 
   DT *nram_para_load_rr_ri_pong = (DT *)nram_buffer + nram_buf_offset;
-  nram_buf_offset += max_para_num * 2;  // complex
+  nram_buf_offset += max_para_num * 2;
 
   DT *nram_para_load_ir_ii_ping = (DT *)nram_buffer + nram_buf_offset;
-  nram_buf_offset += max_para_num * 2;  // complex
+  nram_buf_offset += max_para_num * 2;
 
   DT *nram_para_load_ir_ii_pong = (DT *)nram_buffer + nram_buf_offset;
-  nram_buf_offset += max_para_num * 2;  // complex
+  nram_buf_offset += max_para_num * 2;
 
   DT *nram_para_store_ping = (DT *)nram_buffer + nram_buf_offset;
   nram_buf_offset += max_para_num * 2;  // complex
@@ -70,24 +70,30 @@ __mlu_func__ void computeConjMerge(DT *output, DT *input, int len) {
   nram_buf_offset += max_para_num * 2;  // complex
 
   DT *nram_in_rr = (DT *)nram_buffer + nram_buf_offset;
-  nram_buf_offset += max_para_num;  // complex
+  nram_buf_offset += max_para_num;
   DT *nram_in_ri = (DT *)nram_buffer + nram_buf_offset;
-  nram_buf_offset += max_para_num;  // complex
+  nram_buf_offset += max_para_num;
   DT *nram_in_ir = (DT *)nram_buffer + nram_buf_offset;
-  nram_buf_offset += max_para_num;  // complex
+  nram_buf_offset += max_para_num;
   DT *nram_in_ii = (DT *)nram_buffer + nram_buf_offset;
-  nram_buf_offset += max_para_num;  // complex
+  nram_buf_offset += max_para_num;
+
+  DT *nram_out_r = (DT *)nram_buffer + nram_buf_offset;
+  nram_buf_offset += max_para_num;
+  DT *nram_out_i = (DT *)nram_buffer + nram_buf_offset;
+  nram_buf_offset += max_para_num;
 
   if (repeat_num) {
+    input += t_start * 2;
+    output += t_start * 2;
     for (int repeat_id = 0; repeat_id < repeat_num + 2; ++repeat_id) {
       // pipeline: load-stage
 
       if (repeat_id < repeat_num) {
-        int i = repeat_id * max_para_num + t_start;
+        int i = repeat_id * max_para_num;
 
-        int para_num = (max_para_num > (t_len - repeat_id * max_para_num))
-                           ? (t_len - repeat_id * max_para_num)
-                           : max_para_num;
+        int para_num =
+            (max_para_num > (t_len - i)) ? (t_len - i) : max_para_num;
 
         __memcpy_async(nram_para_load_rr_ri_ping, input + i * 2,
                        sizeof(DT) * 2 * para_num, GDRAM2NRAM);
@@ -100,10 +106,9 @@ __mlu_func__ void computeConjMerge(DT *output, DT *input, int len) {
 
       if (repeat_id >= 2) {
         // MLULOG("pipeline: store-stage.\n");
-        int i = (repeat_id - 2) * max_para_num + t_start;
-        int para_num = (max_para_num > (t_len - (repeat_id - 2) * max_para_num))
-                           ? (t_len - (repeat_id - 2) * max_para_num)
-                           : max_para_num;
+        int i = (repeat_id - 2) * max_para_num;
+        int para_num =
+            (max_para_num > (t_len - i)) ? (t_len - i) : max_para_num;
         __memcpy_async(output + i * 2, nram_para_store_ping,
                        para_num * 2 * sizeof(DT), NRAM2GDRAM);
       }
@@ -111,8 +116,8 @@ __mlu_func__ void computeConjMerge(DT *output, DT *input, int len) {
       // pipeline: compute-stage
 
       if (repeat_id >= 1 && repeat_id < repeat_num + 1) {
-        DT *nram_out_r = (DT *)nram_para_load_rr_ri_pong;
-        DT *nram_out_i = (DT *)nram_para_load_rr_ri_pong + max_para_num;
+        // DT *nram_out_r = (DT *)nram_para_load_rr_ri_pong;
+        // DT *nram_out_i = (DT *)nram_para_load_rr_ri_pong + max_para_num;
         __bang_transpose(nram_in_rr, nram_para_load_rr_ri_pong, max_para_num,
                          2);
         __bang_transpose(nram_in_ir, nram_para_load_ir_ii_pong, max_para_num,
@@ -135,8 +140,8 @@ __mlu_func__ void computeConjMerge(DT *output, DT *input, int len) {
 template <typename DT>
 __mlu_func__ void computeBatchConjMerge(DT *output, DT *input, int len,
                                         int batch) {
-  // in[2][len][2]
-  // out[len][2]
+  // in[batch][2][len][2]
+  // out[batch][len][2]
   if (__is_mpu()) return;
 
   int total_num = len;
@@ -150,7 +155,7 @@ __mlu_func__ void computeBatchConjMerge(DT *output, DT *input, int len,
   // int t_end = (t_start + t_len);
 
   int nram_buf_offset = 0;
-  const int max_para_num = 60;
+  const int max_para_num = 600 < t_len ? 600 : t_len;
   repeat_num = (t_len + max_para_num - 1) / max_para_num;
 
   DT *nram_para_load_rr_ri_ping = (DT *)nram_buffer + nram_buf_offset;
@@ -180,24 +185,28 @@ __mlu_func__ void computeBatchConjMerge(DT *output, DT *input, int len,
   DT *nram_in_ii = (DT *)nram_buffer + nram_buf_offset;
   nram_buf_offset += max_para_num;  // complex
 
+  DT *nram_out_r = (DT *)nram_buffer + nram_buf_offset;
+  nram_buf_offset += max_para_num;  // complex
+  DT *nram_out_i = (DT *)nram_buffer + nram_buf_offset;
+  nram_buf_offset += max_para_num;  // complex
+
+  int idist = len * 4;
+  int odist = len * 2;
   if (repeat_num) {
+    input += t_start * 2;
+    output += t_start * 2;
     for (int batch_id = 0; batch_id < batch; batch_id++) {
       for (int repeat_id = 0; repeat_id < repeat_num + 2; ++repeat_id) {
         // pipeline: load-stage
 
         if (repeat_id < repeat_num) {
-          int i = repeat_id;
-          int para_num = (max_para_num > (t_len - i * max_para_num))
-                             ? (t_len - i * max_para_num)
-                             : max_para_num;
-          __memcpy_async(
-              nram_para_load_rr_ri_ping,
-              input + t_start * 2 + i * 2 * max_para_num + batch_id * 4 * len,
-              sizeof(DT) * 2 * para_num, GDRAM2NRAM);
+          int i = repeat_id * max_para_num;
+          int para_num =
+              (max_para_num > (t_len - i)) ? (t_len - i) : max_para_num;
+          __memcpy_async(nram_para_load_rr_ri_ping, input + i * 2,
+                         sizeof(DT) * 2 * para_num, GDRAM2NRAM);
 
-          __memcpy_async(nram_para_load_ir_ii_ping,
-                         input + t_start * 2 + i * 2 * max_para_num + len * 2 +
-                             batch_id * 4 * len,
+          __memcpy_async(nram_para_load_ir_ii_ping, input + (i + len) * 2,
                          sizeof(DT) * 2 * para_num, GDRAM2NRAM);
         }
 
@@ -205,19 +214,17 @@ __mlu_func__ void computeBatchConjMerge(DT *output, DT *input, int len,
 
         if (repeat_id >= 2) {
           // MLULOG("pipeline: store-stage.\n");
-          int i = (repeat_id - 2);
-          int para_num = (max_para_num > (t_len - i * max_para_num))
-                             ? (t_len - i * max_para_num)
-                             : max_para_num;
-          __memcpy_async(
-              output + (i * max_para_num + t_start) * 2 + batch_id * 2 * len,
-              nram_para_store_ping, para_num * 2 * sizeof(DT), NRAM2GDRAM);
+          int i = (repeat_id - 2) * max_para_num;
+          int para_num =
+              (max_para_num > (t_len - i)) ? (t_len - i) : max_para_num;
+          __memcpy_async(output + i * 2, nram_para_store_ping,
+                         sizeof(DT) * 2 * para_num, NRAM2GDRAM);
         }
 
         // pipeline: compute-stage
         if (repeat_id >= 1 && repeat_id < repeat_num + 1) {
-          DT *nram_out_r = (DT *)nram_para_load_rr_ri_pong;
-          DT *nram_out_i = (DT *)nram_para_load_rr_ri_pong + max_para_num;
+          // DT *nram_out_r = (DT *)nram_para_load_rr_ri_pong;
+          // DT *nram_out_i = (DT *)nram_para_load_rr_ri_pong + max_para_num;
           __bang_transpose(nram_in_rr, nram_para_load_rr_ri_pong, max_para_num,
                            2);
           __bang_transpose(nram_in_ir, nram_para_load_ir_ii_pong, max_para_num,
@@ -232,8 +239,10 @@ __mlu_func__ void computeBatchConjMerge(DT *output, DT *input, int len,
         __sync();
         FFT_SWAP_PTR(nram_para_load_rr_ri_pong, nram_para_load_rr_ri_ping);
         FFT_SWAP_PTR(nram_para_load_ir_ii_pong, nram_para_load_ir_ii_ping);
-        FFT_SWAP_PTR(nram_para_store_ping, nram_para_store_pong);
+        FFT_SWAP_PTR(nram_para_store_pong, nram_para_store_ping);
       }
+      input += idist;
+      output += odist;
     }
   }
 }

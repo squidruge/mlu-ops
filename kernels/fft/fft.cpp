@@ -289,14 +289,11 @@ mluOpStatus_t MLUOP_WIN_API fftGenerateDftMatrixKernelNoPad(DT *dft_matrix,
   const int sign = (dir == FFT_FORWARD) ? -1 : 1;
   for (k = 0; k < radix; k++) {
     for (j = 0; j < radix; j++) {
-      // phase = 1 when k = 0
-
       phase = sign * 2 * (DT)FFT_PI * k * j / radix;
       dft_matrix[radix * k + j] = (DT)cos(phase);                  // r
       dft_matrix[radix * k + j + radix * radix] = (DT)sin(phase);  // i
-
-    }  // radix
-  }    // butterfly_num
+    }                                                              // radix
+  }  // butterfly_num
   return MLUOP_STATUS_SUCCESS;
 }
 
@@ -1518,6 +1515,8 @@ mluOpStatus_t MLUOP_WIN_API mluOpMakeFFTPlanC2C2D(
     const int rank, const int *n, const int direction) {
   if (fft_plan->idist == 1 && fft_plan->odist == 1 &&
       fft_plan->istride == fft_plan->batch &&
+      fft_plan->inembed[0] == fft_plan->n[0] &&
+      fft_plan->onembed[0] == fft_plan->n[0] &&
       fft_plan->inembed[1] == fft_plan->n[1] &&
       fft_plan->onembed[1] == fft_plan->n[1]) {
     fft_plan->fft_strategy = CNFFT_FUNC_BATCH_STRIDE_2D;
@@ -1540,7 +1539,17 @@ mluOpStatus_t MLUOP_WIN_API mluOpMakeFFTPlanC2C2D(
 
         fftGenerateDftMatrixKernelNoPad<float>((float *)fft_plan->dft_matrix,
                                                n[1], direction);
+        // {
+        //   float * buf = (float *)fft_plan->dft_matrix;
+        // int n1 = n[1];
+        // for(int i = 0; i <3; i ++) {
+        //     for(int j = 0; j <2; j ++) {
 
+        //   printf("dft (%f, %f)  ", (buf)[(i*n1+j)],(buf)[(i*n1+j)+n1*n1]);
+        // }
+        // printf("\n");
+        // }
+        // }
         fftGenerateDftMatrixKernelNoPad<float>((float *)fft_plan->dft_matrix_2d,
                                                n[0], direction);
         break;
@@ -1607,6 +1616,7 @@ mluOpStatus_t MLUOP_WIN_API mluOpMakeFFTPlanMany(
     mluOpTensorDescriptor_t input_desc, mluOpTensorDescriptor_t output_desc,
     const int rank, const int *n, size_t *reservespace_size,
     size_t *workspace_size) {
+  // TODO(zrg): fix bug direction
   const int direction = FFT_FORWARD;
   // bad param check
   const std::string make_plan_api = "[mluOpMakeFFTPlanMany]";
@@ -2127,9 +2137,6 @@ mluOpStatus_t MLUOP_WIN_API mluOpExecFFT(
         status = execFFT1d(handle, fft_plan, input, scale_factor, workspace,
                            output, direction);
       } else if (fft_plan->rank == 2) {
-        // TODO(who)
-        // status = MLUOP_STATUS_NOT_SUPPORTED;
-
         status = execFFT2d(handle, fft_plan, input, scale_factor, workspace,
                            output, direction);
       } else if (fft_plan->rank == 3) {
