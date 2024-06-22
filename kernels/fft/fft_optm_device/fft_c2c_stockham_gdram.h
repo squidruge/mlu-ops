@@ -355,8 +355,10 @@ __mlu_func__ void computeMutiStageOnchipColumn(
   if (__is_mpu()) {
     __memcpy_async(sram_factors, factors, FFT_MAXFACTORS * sizeof(int),
                    GDRAM2SRAM);
-    __memcpy_async(sram_twiddles, twiddles, twiddles_size * sizeof(DT),
-                   GDRAM2SRAM);
+    if (twiddles_size) {
+      __memcpy_async(sram_twiddles, twiddles, twiddles_size * sizeof(DT),
+                     GDRAM2SRAM);
+    }
     // _small_stage_count = small_factors[0];
 
     const dft_table_entry *dft_table_gdram =
@@ -373,10 +375,11 @@ __mlu_func__ void computeMutiStageOnchipColumn(
         if (dft_table[entry + 1].radix == -1) {
           int last_radix = dft_table[entry].radix;
           int last_offset = dft_table[entry].offset;
-          __memcpy_async(
-              sram_dftmtx, dft_matrix,
-              sizeof(DT) * 2 * (last_radix * last_radix + last_offset),
-              GDRAM2SRAM);
+          const int K_num = 64 / sizeof(DT);
+          int align_K = K_num * ((radix + K_num - 1) / K_num);
+          __memcpy_async(sram_dftmtx, dft_matrix,
+                         sizeof(DT) * 2 * (last_radix * align_K + last_offset),
+                         GDRAM2SRAM);
           break;
         }
       }
@@ -424,7 +427,8 @@ __mlu_func__ void computeMutiStageOnchipColumn(
 
     if (repeat_num > 0 || taskId < remain_num) {
       small_factors = factors + small_factors_offset;
-      max_para_batch = small_factors[3] > batch ? batch : small_factors[3];
+      // max_para_batch = small_factors[3] > batch ? batch : small_factors[3];
+      max_para_batch = (6144 / radix) > batch ? batch : (6144 / radix);
       for (int t = t_start; t < t_end; t += max_para_batch) {
         // MLULOG("taskId: %d, batchId: %d\n", taskId, t);
         int para_batch =
@@ -445,7 +449,6 @@ __mlu_func__ void computeMutiStageOnchipColumn(
         // MLULOG("para_batch: %d\n", para_batch);
         int nb0 = nfft;
         int nb1 = batch;
-        // if(0)
 
         computeLargeButterflyFirststageColumn<DT>(
             output_batch, input_batch, in_stride, section_num, twiddles,
@@ -454,22 +457,15 @@ __mlu_func__ void computeMutiStageOnchipColumn(
       }
     }
     // __sync();
-  } else {
-    stage_count = _stage_count;
-    last_stage = (stage_count == 1);
+    stage_count--;
+    if (stage_count == 0) {
+      // continue;
+
+      return;
+    }
   }
-  // return;
 
   // sram_large_tw
-  stage_count--;
-  if (stage_count == 0) {
-    // continue;
-    return;
-  }
-
-  // if (__is_mpu()) {
-  //   return;
-  // }
 
   // sram_large_tw
   value_mul = 10;

@@ -1722,8 +1722,13 @@ mluOpStatus_t execFFTc2c1d(mluOpHandle_t handle, mluOpFFTPlan_t fft_plan,
   cnrtDim3_t k_dim;
   cnrtFunctionType_t k_type;
   policyFunc(handle, &k_dim, &k_type);
-  kernelFFTButterfly(k_dim, k_type, handle->queue, fft_plan, direction,
-                     FFT_IFFT);
+  if (fft_plan->istride == 1) {
+    kernelFFTButterfly(k_dim, k_type, handle->queue, fft_plan, direction,
+                       FFT_IFFT);
+  } else {
+    kernelFFTButterflyColumn(k_dim, k_type, handle->queue, fft_plan, direction,
+                             FFT_IFFT);
+  }
 
   return status;
 }

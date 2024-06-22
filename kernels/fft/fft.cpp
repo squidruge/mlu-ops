@@ -264,8 +264,6 @@ mluOpStatus_t MLUOP_WIN_API fftGenerateDftMatrixKernel(DT *dft_matrix,
   const int sign = (dir == FFT_FORWARD) ? -1 : 1;
   for (k = 0; k < radix; k++) {
     for (j = 0; j < align_K; j++) {
-      // phase = 1 when k = 0
-
       if (j < radix) {
         phase = sign * 2 * (DT)FFT_PI * k * j / radix;
         dft_matrix[align_K * k + j] = (DT)cos(phase);                    // r
@@ -388,94 +386,6 @@ mluOpStatus_t MLUOP_WIN_API fftGenerateDftMatrix(void *&_dft_matrix,
 
   return MLUOP_STATUS_SUCCESS;
 }
-
-#define MaxLargeRadix 2048
-
-// int fftTwoStepFactor(const int _n, int *facbuf)
-// {
-//   int n = _n;
-//   if ((facbuf == NULL) || (n <= 0))
-//   {
-//     printf("ERROR, facbuf is NULL or n smaller and equal to 0.  __FILE__: %s,
-//     __LINE__: %d. \n", __FILE__, __LINE__); exit(1);
-//   }
-
-//   int r, in_stride, section_num, stage_num = 0, out_stride = 1;
-//   int radix_basic[] = {3, 4, 5, 6, 7, 8, 9, 11, 13, 16};
-
-//   int large_radix = 1;
-
-//   while (n > 1)
-//   {
-
-//     if ((n % 1024) == 0)
-//     {
-//       r = 1024;
-//       // set small factors
-//     }
-//     else if ((n % 512) == 0)
-//     {
-//       r = 512;
-//       // set small factors
-//     }
-//     else
-//     {
-//       // prime
-//       // r = n;
-//       large_radix = 1;
-//       while (n > 1 || large_radix < MaxLargeRadix)
-//       {
-//         if ((n % 1024) == 0)
-//         {
-//           r = 1024;
-//           // set small factors
-//         }
-//         else if ((n % 512) == 0)
-//         {
-//           r = 512;
-//           // set small factors
-//         }
-//         else
-//         {
-//           r =n;
-//         }
-//       }
-//     }
-
-//     // printf("radix%d = %d\n", stage_num+1, r);
-//     n /= r;
-//     in_stride = _n / r;
-//     section_num = n;
-//     stage_num++;
-
-//     facbuf[4 * stage_num] = r;
-//     facbuf[4 * stage_num + 1] = section_num;
-//     facbuf[4 * stage_num + 2] = out_stride;
-//     facbuf[4 * stage_num + 3] = in_stride;
-
-//     out_stride *= r;
-//   }
-
-//   facbuf[0] = stage_num;
-//   facbuf[1] = _n;
-//   facbuf[2] = 0;
-
-//   if (stage_num > 21)
-//   {
-//     // Since nfft is openfft_int32_t, stage_num can never be greater than 21,
-//     because 3^21 > 2^32 printf("ERROR, unsupported length for int32 type.
-//     __FILE__: %s, __LINE__: %d. \n", __FILE__, __LINE__); exit(1);
-//   }
-
-//   return 0;
-// }
-
-#define MaxLargeRadix 2048
-
-// mluOpStatus_t MLUOP_WIN_API mluOpMakeFFTPlanC2C1D (
-//     mluOpHandle_t handle, mluOpFFTPlan_t fft_plan,
-//     mluOpTensorDescriptor_t input_desc, mluOpTensorDescriptor_t output_desc,
-//     const int rank, const int *n)
 
 // data struct
 // factors[0]: stage_count
@@ -725,15 +635,18 @@ mluOpStatus_t MLUOP_WIN_API fftFactor(const int _n, int *facbuf,
         break;
 
       default:
-        // if (_n <= 64) {
-        //   r = _n;
-        // }
-        for (int cur_r = 64; cur_r > 1; cur_r--) {
-          if (n % cur_r == 0) {
-            r = cur_r;
-            break;
+        if (_n <= 64) {
+          r = _n;
+          break;
+        } else {
+          for (int cur_r = 64; cur_r > 1; cur_r--) {
+            if (n % cur_r == 0) {
+              r = cur_r;
+              break;
+            }
           }
         }
+
         break;
     }
 
@@ -832,11 +745,31 @@ mluOpStatus_t MLUOP_WIN_API fftTwoStepFactor(mluOpFFTPlan_t fft_plan,
         //   }
         //   break;
 
+      case (32 * 17):
+        if (n % 32 == 0) {
+          r = 32;
+        } else if ((n % 17) == 0) {
+          r = 17;
+        }
+        break;
+
+      case 1024:
+        if (n % 32 == 0) {
+          r = 32;
+        }
+        break;
+
       case 2048:
         if (n % 64 == 0) {
           r = 64;
         } else if ((n % 32) == 0) {
           r = 32;
+        }
+        break;
+
+      case 4096:
+        if (n % 64 == 0) {
+          r = 64;
         }
         break;
 
@@ -1565,8 +1498,15 @@ mluOpStatus_t MLUOP_WIN_API mluOpMakeFFTPlanC2C1D(
     case CNFFT_FLOAT2COMPLEX_FLOAT:
     case CNFFT_COMPLEX_FLOAT2FLOAT:
     case CNFFT_COMPLEX_FLOAT2COMPLEX_FLOAT:
-      fftGenerateTwiddles<float>(fft_plan->twiddles, fft_plan->twiddles_end,
-                                 fft_plan->factors, n[0], direction);
+      if (fft_plan->istride == 1) {
+        fftGenerateTwiddles<float>(fft_plan->twiddles, fft_plan->twiddles_end,
+                                   fft_plan->factors, n[0], direction);
+      } else {
+        fftGenerateTwiddlesColumn<float>(fft_plan->twiddles,
+                                         fft_plan->twiddles_end,
+                                         fft_plan->factors, n[0], direction);
+      }
+
       fftGenerateDftMatrix<float>(fft_plan->dft_matrix, fft_plan->factors, n[0],
                                   direction);
       break;
@@ -1579,8 +1519,14 @@ mluOpStatus_t MLUOP_WIN_API mluOpMakeFFTPlanC2C1D(
       //                           direction);
 
       // TODO(zrg): need to copy twiddles to device, and convert to half.
-      fftGenerateTwiddles<float>(fft_plan->twiddles, fft_plan->twiddles_end,
-                                 fft_plan->factors, n[0], direction);
+      if (fft_plan->istride == 1) {
+        fftGenerateTwiddles<float>(fft_plan->twiddles, fft_plan->twiddles_end,
+                                   fft_plan->factors, n[0], direction);
+      } else {
+        fftGenerateTwiddlesColumn<float>(fft_plan->twiddles,
+                                         fft_plan->twiddles_end,
+                                         fft_plan->factors, n[0], direction);
+      }
       fftGenerateDftMatrix<float>(fft_plan->dft_matrix, fft_plan->factors, n[0],
                                   direction);
       break;
