@@ -335,6 +335,10 @@ mluOpStatus_t MLUOP_WIN_API kernelFFTBatchConjMergeR2C(
     cnrtDim3_t k_dim, cnrtFunctionType_t k_type, cnrtQueue_t queue,
     void *output, void *input, int len, int batch, int dtype);
 
+mluOpStatus_t MLUOP_WIN_API kernelFFTBatchConjMergeC2R(
+    cnrtDim3_t k_dim, cnrtFunctionType_t k_type, cnrtQueue_t queue,
+    void *output, void *input, int len, int batch, int dtype);
+
 mluOpStatus_t computeFFT2dMatMulRow(mluOpHandle_t handle,
                                     mluOpFFTPlan_t fft_plan,
                                     const float scale_factor, int direction);
@@ -347,7 +351,15 @@ mluOpStatus_t computeFFT2dMatMulRowR2C(mluOpHandle_t handle,
                                        mluOpFFTPlan_t fft_plan,
                                        const float scale_factor, int direction);
 
+mluOpStatus_t computeFFT2dMatMulRowC2R(mluOpHandle_t handle,
+                                       mluOpFFTPlan_t fft_plan,
+                                       const float scale_factor, int direction);
+
 mluOpStatus_t computeFFT2dMatMulColumnR2C(mluOpHandle_t handle,
+                                          mluOpFFTPlan_t fft_plan,
+                                          const float scale_factor,
+                                          int direction);
+mluOpStatus_t computeFFT2dMatMulColumnC2R(mluOpHandle_t handle,
                                           mluOpFFTPlan_t fft_plan,
                                           const float scale_factor,
                                           int direction);

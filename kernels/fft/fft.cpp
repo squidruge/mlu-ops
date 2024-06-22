@@ -296,6 +296,29 @@ mluOpStatus_t MLUOP_WIN_API fftGenerateDftMatrixKernelNoPad(DT *dft_matrix,
 }
 
 template <typename DT>
+mluOpStatus_t MLUOP_WIN_API
+fftGenerateC2RDftMatrixKernelNoPad(DT *dft_matrix, const int radix) {
+  int j, k;
+  DT phase;
+  int half = (radix / 2 + 1);
+  const int sign = 1;  // backward
+  for (k = 0; k < radix; k++) {
+    for (j = 0; j < half; j++) {
+      phase = sign * 2 * (DT)FFT_PI * k * j / radix;
+      if (j == 0 || j == half - 1) {
+        dft_matrix[2 * half * k + j] = (DT)cos(phase);          // r
+        dft_matrix[2 * half * k + j + half] = -(DT)sin(phase);  // i neg
+      } else {
+        dft_matrix[2 * half * k + j] = 2 * (DT)cos(phase);          // r
+        dft_matrix[2 * half * k + j + half] = -2 * (DT)sin(phase);  // i neg
+      }
+
+    }  // radix
+  }    // butterfly_num
+  return MLUOP_STATUS_SUCCESS;
+}
+
+template <typename DT>
 mluOpStatus_t MLUOP_WIN_API fftGenerateHalfDftMatrixKernelNoPad(DT *dft_matrix,
                                                                 const int radix,
                                                                 const int dir) {
@@ -1405,23 +1428,25 @@ mluOpStatus_t MLUOP_WIN_API mluOpAllocateC2C2D(
   return status;
 }
 
-mluOpStatus_t MLUOP_WIN_API mluOpAllocateR2C2D(
+mluOpStatus_t MLUOP_WIN_API mluOpAllocateRFFT2D(
     mluOpHandle_t handle, mluOpFFTPlan_t fft_plan,
     mluOpTensorDescriptor_t input_desc, mluOpTensorDescriptor_t output_desc,
     const int _n0, const int _n1) {
-  const std::string make_plan_api = "[mluOpAllocateR2C2D]";
+  const std::string make_plan_api = "[mluOpAllocateRFFT2D]";
   size_t workspace_size = 0, reservespace_size = 0;
   size_t CPX_TYPE_SIZE = 0, REAL_TYPE_SIZE = 0;
 
   switch (fft_plan->fft_type) {
-    case CNFFT_HALF2COMPLEX_HALF: {
+    case CNFFT_HALF2COMPLEX_HALF:
+    case CNFFT_COMPLEX_HALF2HALF: {
       REAL_TYPE_SIZE = 2;
     } break;
-    case CNFFT_FLOAT2COMPLEX_FLOAT: {
+    case CNFFT_FLOAT2COMPLEX_FLOAT:
+    case CNFFT_COMPLEX_FLOAT2FLOAT: {
       REAL_TYPE_SIZE = 4;
     }; break;
     default: {
-      LOG(ERROR) << make_plan_api << ": invalid c2c 2d fft type.";
+      LOG(ERROR) << make_plan_api << ": invalid r2c 2d fft type.";
       return MLUOP_STATUS_BAD_PARAM;
     }
   }
@@ -1656,7 +1681,7 @@ mluOpStatus_t MLUOP_WIN_API mluOpMakeFFTPlanR2C2D(
     fft_plan->fft_strategy = CNFFT_FUNC_TWO_LEVEL_STOCKHAM;
   }
 
-  mluOpAllocateR2C2D(handle, fft_plan, input_desc, output_desc, n[0], n[1]);
+  mluOpAllocateRFFT2D(handle, fft_plan, input_desc, output_desc, n[0], n[1]);
 
   if (fft_plan->fft_strategy == CNFFT_FUNC_MANY_DIST1_2D) {
     switch (fft_plan->fft_type) {
@@ -1682,8 +1707,55 @@ mluOpStatus_t MLUOP_WIN_API mluOpMakeFFTPlanR2C2D(
     }
   }
 
-  if (fft_plan->fft_strategy == CNFFT_FUNC_TWO_LEVEL_STOCKHAM) {
+  // if (fft_plan->fft_strategy == CNFFT_FUNC_TWO_LEVEL_STOCKHAM) {
+  // }
+
+  return MLUOP_STATUS_SUCCESS;
+}
+
+/**
+ * @degroup R2C_PLAN Floating Real-to-Complex FFT plan
+ */
+
+mluOpStatus_t MLUOP_WIN_API mluOpMakeFFTPlanC2R2D(
+    mluOpHandle_t handle, mluOpFFTPlan_t fft_plan,
+    mluOpTensorDescriptor_t input_desc, mluOpTensorDescriptor_t output_desc,
+    const int rank, const int *n, const int direction) {
+  if (fft_plan->idist == 1 && fft_plan->odist == 1 &&
+      fft_plan->istride == fft_plan->batch) {
+    fft_plan->fft_strategy = CNFFT_FUNC_MANY_DIST1_2D;
+  } else {
+    fft_plan->fft_strategy = CNFFT_FUNC_TWO_LEVEL_STOCKHAM;
   }
+
+  mluOpAllocateRFFT2D(handle, fft_plan, input_desc, output_desc, n[0], n[1]);
+
+  if (fft_plan->fft_strategy == CNFFT_FUNC_MANY_DIST1_2D) {
+    switch (fft_plan->fft_type) {
+      case CNFFT_FLOAT2COMPLEX_FLOAT:
+      case CNFFT_COMPLEX_FLOAT2FLOAT:
+      case CNFFT_COMPLEX_FLOAT2COMPLEX_FLOAT:
+        fft_plan->dft_matrix = new float[n[1] * (n[1] / 2 + 1) * 2];
+        fft_plan->dft_matrix_2d = new float[n[0] * n[0] * 2];
+
+        fftGenerateC2RDftMatrixKernelNoPad<float>((float *)fft_plan->dft_matrix,
+                                                  n[1]);
+        fftGenerateDftMatrixKernelNoPad<float>((float *)fft_plan->dft_matrix_2d,
+                                               n[0], FFT_BACKWARD);
+        break;
+      case CNFFT_HALF2COMPLEX_HALF:
+      case CNFFT_COMPLEX_HALF2HALF:
+      case CNFFT_COMPLEX_HALF2COMPLEX_HALF:
+        // TODO(zrg): need to copy twiddles to device, and convert to half.
+
+        break;
+      default:
+        break;
+    }
+  }
+
+  // if (fft_plan->fft_strategy == CNFFT_FUNC_TWO_LEVEL_STOCKHAM) {
+  // }
 
   return MLUOP_STATUS_SUCCESS;
 }
@@ -1998,6 +2070,9 @@ mluOpStatus_t MLUOP_WIN_API mluOpMakeFFTPlanMany(
       if (rank == 1) {
         VLOG(5) << "into make IRFFT1d Policy";
         status = makeIRFFT1dPolicy(handle, fft_plan);
+      } else if (rank == 2) {
+        status = mluOpMakeFFTPlanC2R2D(handle, fft_plan, input_desc,
+                                       output_desc, rank, n, direction);
       }
     }; break;
     case CNFFT_COMPLEX_HALF2COMPLEX_HALF:
@@ -2133,6 +2208,9 @@ mluOpStatus_t MLUOP_WIN_API mluOpSetFFTReserveArea(mluOpHandle_t handle,
     case CNFFT_COMPLEX_FLOAT2FLOAT: {
       if (fft_plan->rank == 1) {
         status = setIRFFT1dReserveArea(handle, fft_plan, api);
+      } else if (fft_plan->rank == 2) {
+        // status = setFFT1dReserveArea(handle, fft_plan, api);
+        status = setFFT2dReserveArea(handle, fft_plan, api);
       } else {
         status = MLUOP_STATUS_NOT_SUPPORTED;
       }
@@ -2250,8 +2328,8 @@ mluOpStatus_t MLUOP_WIN_API mluOpExecFFT(
         status = execIRFFT1d(handle, fft_plan, input, scale_factor, workspace,
                              output);
       } else if (fft_plan->rank == 2) {
-        // TODO(who)
-        status = MLUOP_STATUS_NOT_SUPPORTED;
+        status = execFFT2d(handle, fft_plan, input, scale_factor, workspace,
+                           output, direction);
       } else if (fft_plan->rank == 3) {
         // TODO(who)
         status = MLUOP_STATUS_NOT_SUPPORTED;
