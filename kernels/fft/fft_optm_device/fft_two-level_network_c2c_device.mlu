@@ -95,13 +95,24 @@ mluOpStatus_t MLUOP_WIN_API kernelFFT2dButterflyColumn(
   VLOG(5) << "Launch Kernel kernelFFT1dButterflyRow <<Union"
           << k_type / CORE_DIM << ", " << k_dim.x << ", " << k_dim.y << ", "
           << k_dim.z << ">>>";
-  KERNEL_CHECK((MLUKernelFFT1dButterflyColumn<<<k_dim, k_type, queue>>>(
-      fft_plan->mlu_addrs.output, fft_plan->mlu_addrs.output,
-      fft_plan->mlu_addrs.factors_2d, fft_plan->mlu_addrs.twiddles_2d,
-      fft_plan->mlu_addrs.twiddles_2d_end, fft_plan->mlu_addrs.dft_matrix_2d,
-      fft_plan->mlu_addrs.buffer_buf, fft_plan->n[1], flag,
-      direction,  // direction, -1 means invalid(only FFT_IFFT use).
-      fft_plan->output_dtype)));
+  if (direction == FFT_FORWARD) {
+    KERNEL_CHECK((MLUKernelFFT1dButterflyColumn<<<k_dim, k_type, queue>>>(
+        fft_plan->mlu_addrs.output, fft_plan->mlu_addrs.output,
+        fft_plan->mlu_addrs.factors_2d, fft_plan->mlu_addrs.twiddles_2d,
+        fft_plan->mlu_addrs.twiddles_2d_end, fft_plan->mlu_addrs.dft_matrix_2d,
+        fft_plan->mlu_addrs.buffer_buf, fft_plan->n[1], flag,
+        direction,  // direction, -1 means invalid(only FFT_IFFT use).
+        fft_plan->output_dtype)));
+  } else {
+    KERNEL_CHECK((MLUKernelFFT1dButterflyColumn<<<k_dim, k_type, queue>>>(
+        fft_plan->mlu_addrs.input, fft_plan->mlu_addrs.output,
+        fft_plan->mlu_addrs.factors_2d, fft_plan->mlu_addrs.twiddles_inv_2d,
+        fft_plan->mlu_addrs.twiddles_inv_2d_end,
+        fft_plan->mlu_addrs.idft_matrix_2d, fft_plan->mlu_addrs.buffer_buf,
+        fft_plan->n[1], flag,
+        direction,  // direction, -1 means invalid(only FFT_IFFT use).
+        fft_plan->output_dtype)));
+  }
   return MLUOP_STATUS_SUCCESS;
 }
 
@@ -111,13 +122,23 @@ mluOpStatus_t MLUOP_WIN_API kernelFFT1dButterflyColumn(
   VLOG(5) << "Launch Kernel kernelFFT1dButterflyRow <<Union"
           << k_type / CORE_DIM << ", " << k_dim.x << ", " << k_dim.y << ", "
           << k_dim.z << ">>>";
-  KERNEL_CHECK((MLUKernelFFT1dButterflyColumn<<<k_dim, k_type, queue>>>(
-      fft_plan->mlu_addrs.input, fft_plan->mlu_addrs.output,
-      fft_plan->mlu_addrs.factors, fft_plan->mlu_addrs.twiddles,
-      fft_plan->mlu_addrs.twiddles_end, fft_plan->mlu_addrs.dft_matrix,
-      fft_plan->mlu_addrs.buffer_buf, fft_plan->batch, flag,
-      direction,  // direction, -1 means invalid(only FFT_IFFT use).
-      fft_plan->output_dtype)));
+  if (direction == FFT_FORWARD) {
+    KERNEL_CHECK((MLUKernelFFT1dButterflyColumn<<<k_dim, k_type, queue>>>(
+        fft_plan->mlu_addrs.input, fft_plan->mlu_addrs.output,
+        fft_plan->mlu_addrs.factors, fft_plan->mlu_addrs.twiddles,
+        fft_plan->mlu_addrs.twiddles_end, fft_plan->mlu_addrs.dft_matrix,
+        fft_plan->mlu_addrs.buffer_buf, fft_plan->batch, flag,
+        direction,  // direction, -1 means invalid(only FFT_IFFT use).
+        fft_plan->output_dtype)));
+  } else {
+    KERNEL_CHECK((MLUKernelFFT1dButterflyColumn<<<k_dim, k_type, queue>>>(
+        fft_plan->mlu_addrs.input, fft_plan->mlu_addrs.output,
+        fft_plan->mlu_addrs.factors, fft_plan->mlu_addrs.twiddles_inv,
+        fft_plan->mlu_addrs.twiddles_inv_end, fft_plan->mlu_addrs.idft_matrix,
+        fft_plan->mlu_addrs.buffer_buf, fft_plan->batch, flag,
+        direction,  // direction, -1 means invalid(only FFT_IFFT use).
+        fft_plan->output_dtype)));
+  }
   return MLUOP_STATUS_SUCCESS;
 }
 
@@ -127,13 +148,23 @@ mluOpStatus_t MLUOP_WIN_API kernelFFT2dButterflyRow(
   VLOG(5) << "Launch Kernel kernelFFT1dButterflyRow <<Union"
           << k_type / CORE_DIM << ", " << k_dim.x << ", " << k_dim.y << ", "
           << k_dim.z << ">>>";
-  KERNEL_CHECK((MLUKernelFFT1dButterflyRow<<<k_dim, k_type, queue>>>(
-      fft_plan->mlu_addrs.input, fft_plan->mlu_addrs.output,
-      fft_plan->mlu_addrs.factors, fft_plan->mlu_addrs.twiddles,
-      fft_plan->mlu_addrs.twiddles_end, fft_plan->mlu_addrs.dft_matrix,
-      fft_plan->mlu_addrs.buffer_buf, fft_plan->n[0], flag,
-      direction,  // direction, -1 means invalid(only FFT_IFFT use).
-      fft_plan->output_dtype)));
+  if (direction == FFT_FORWARD) {
+    KERNEL_CHECK((MLUKernelFFT1dButterflyRow<<<k_dim, k_type, queue>>>(
+        fft_plan->mlu_addrs.input, fft_plan->mlu_addrs.output,
+        fft_plan->mlu_addrs.factors, fft_plan->mlu_addrs.twiddles,
+        fft_plan->mlu_addrs.twiddles_end, fft_plan->mlu_addrs.dft_matrix,
+        fft_plan->mlu_addrs.buffer_buf, fft_plan->n[0], flag,
+        direction,  // direction, -1 means invalid(only FFT_IFFT use).
+        fft_plan->output_dtype)));
+  } else {
+    KERNEL_CHECK((MLUKernelFFT1dButterflyRow<<<k_dim, k_type, queue>>>(
+        fft_plan->mlu_addrs.output, fft_plan->mlu_addrs.output,
+        fft_plan->mlu_addrs.factors, fft_plan->mlu_addrs.twiddles_inv,
+        fft_plan->mlu_addrs.twiddles_inv_end, fft_plan->mlu_addrs.idft_matrix,
+        fft_plan->mlu_addrs.buffer_buf, fft_plan->n[0], flag,
+        direction,  // direction, -1 means invalid(only FFT_IFFT use).
+        fft_plan->output_dtype)));
+  }
   return MLUOP_STATUS_SUCCESS;
 }
 
@@ -143,12 +174,23 @@ mluOpStatus_t MLUOP_WIN_API kernelFFT1dButterflyRow(
   VLOG(5) << "Launch Kernel kernelFFT1dButterflyRow <<Union"
           << k_type / CORE_DIM << ", " << k_dim.x << ", " << k_dim.y << ", "
           << k_dim.z << ">>>";
-  KERNEL_CHECK((MLUKernelFFT1dButterflyRow<<<k_dim, k_type, queue>>>(
-      fft_plan->mlu_addrs.input, fft_plan->mlu_addrs.output,
-      fft_plan->mlu_addrs.factors, fft_plan->mlu_addrs.twiddles,
-      fft_plan->mlu_addrs.twiddles_end, fft_plan->mlu_addrs.dft_matrix,
-      fft_plan->mlu_addrs.buffer_buf, fft_plan->batch, flag,
-      direction,  // direction, -1 means invalid(only FFT_IFFT use).
-      fft_plan->output_dtype)));
+  if (direction == FFT_FORWARD) {
+    KERNEL_CHECK((MLUKernelFFT1dButterflyRow<<<k_dim, k_type, queue>>>(
+        fft_plan->mlu_addrs.input, fft_plan->mlu_addrs.output,
+        fft_plan->mlu_addrs.factors, fft_plan->mlu_addrs.twiddles,
+        fft_plan->mlu_addrs.twiddles_end, fft_plan->mlu_addrs.dft_matrix,
+        fft_plan->mlu_addrs.buffer_buf, fft_plan->batch, flag,
+        direction,  // direction, -1 means invalid(only FFT_IFFT use).
+        fft_plan->output_dtype)));
+  } else {
+    KERNEL_CHECK((MLUKernelFFT1dButterflyRow<<<k_dim, k_type, queue>>>(
+        fft_plan->mlu_addrs.input, fft_plan->mlu_addrs.output,
+        fft_plan->mlu_addrs.factors, fft_plan->mlu_addrs.twiddles_inv,
+        fft_plan->mlu_addrs.twiddles_inv_end, fft_plan->mlu_addrs.idft_matrix,
+        fft_plan->mlu_addrs.buffer_buf, fft_plan->batch, flag,
+        direction,  // direction, -1 means invalid(only FFT_IFFT use).
+        fft_plan->output_dtype)));
+  }
+
   return MLUOP_STATUS_SUCCESS;
 }

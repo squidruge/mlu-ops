@@ -164,11 +164,17 @@ struct cnfftButterflyAddrs {
   void *twiddles_2d;
   void *twiddles_end;
   void *twiddles_2d_end;
+  void *twiddles_inv;
+  void *twiddles_inv_2d;
+  void *twiddles_inv_end;
+  void *twiddles_inv_2d_end;
   void *buffer_buf;
   void *buffer_in;
   void *buffer_out;
   void *dft_matrix;
   void *dft_matrix_2d;
+  void *idft_matrix;
+  void *idft_matrix_2d;
   int *factors;
   int *factors_2d;
 };
@@ -218,8 +224,14 @@ struct mluOpFFTStruct {
   void *twiddles_2d;
   void *twiddles_end;
   void *twiddles_2d_end;
+  void *twiddles_inv;
+  void *twiddles_inv_2d;
+  void *twiddles_inv_end;
+  void *twiddles_inv_2d_end;
   void *dft_matrix;
   void *dft_matrix_2d;
+  void *idft_matrix;
+  void *idft_matrix_2d;
   cnfftButterflyAddrs mlu_addrs;
 };
 

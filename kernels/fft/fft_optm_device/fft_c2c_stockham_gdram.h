@@ -72,7 +72,6 @@ __mlu_func__ void computeMutiStageOnchip(DT *input, DT *output, int *factors,
 
   int sram_dftmtx_size = 0;
   DT *sram_dftmtx = (DT *)(sram_buffer + sram_offset);
-  // sram_offset += sram_dftmtx_size * sizeof(DT);
 
   const int _stage_count = factors[0];
   const int nfft = factors[1];
@@ -95,7 +94,6 @@ __mlu_func__ void computeMutiStageOnchip(DT *input, DT *output, int *factors,
       __memcpy_async(sram_twiddles, twiddles, twiddles_size * sizeof(DT),
                      GDRAM2SRAM);
     }
-    // _small_stage_count = small_factors[0];
 
     const dft_table_entry *dft_table_gdram =
         (const dft_table_entry *)dft_matrix;

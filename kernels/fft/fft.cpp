@@ -1262,8 +1262,8 @@ mluOpAllocateC2C1D(mluOpHandle_t handle, mluOpFFTPlan_t fft_plan,
   //                             );
 
   size_t twiddles_size = sizeof(CPX_TYPE_SIZE) * nfft * 2;
-  reservespace_size = sizeof(int) * (FFT_MAXFACTORS)    /* factors */
-                      + twiddles_size + DFT_TABLE_SIZE; /* twiddles */
+  reservespace_size = sizeof(int) * (FFT_MAXFACTORS)            /* factors */
+                      + twiddles_size * 2 + DFT_TABLE_SIZE * 2; /* twiddles */
 
   fft_plan->workspace_size = workspace_size;
   fft_plan->reservespace_size = reservespace_size;
@@ -1300,60 +1300,29 @@ mluOpStatus_t MLUOP_WIN_API mluOpAllocateC2C2D(
   }
 
   int batch = fft_plan->batch;
-  // int batch = 1;
-
   size_t buffer_size = batch * sizeof(CPX_TYPE_SIZE) * _n0 * _n1;
-
-  workspace_size = buffer_size * 3;
-
-  // int padded_input_num = batch * n;
-  const int trans_dim_num = 3;
-  int trans_input_dims[trans_dim_num] = {fft_plan->n[0], fft_plan->n[1],
-                                         COMPLEX};
-  int trans_output_dims[trans_dim_num] = {fft_plan->n[1], fft_plan->n[0],
-                                          COMPLEX};
-  int trans_permute[trans_dim_num] = {1, 0, 2};
-  size_t trans_workspace_size;
-  mluOpStatus_t status = fftGetTransposeWorkspaceSize(
-      handle, trans_workspace_size, trans_dim_num, trans_input_dims,
-      trans_permute, fft_plan->input_dtype, make_plan_api);
-
-  workspace_size = (workspace_size > trans_workspace_size)
-                       ? workspace_size
-                       : trans_workspace_size;
-
-  status = fftGetTransposeWorkspaceSize(
-      handle, trans_workspace_size, trans_dim_num, trans_output_dims,
-      trans_permute, fft_plan->input_dtype, make_plan_api);
-
-  // CALL_CNNL(cnnlTranspose_v2(cnnl_handle, trans_desc, cnnl_input_desc,
-  // ori_ptr,
-  //                            cnnl_transed_input_desc, transed_ptr, workspace,
-  //                            workspace_size));
-
-  workspace_size = (workspace_size > trans_workspace_size)
-                       ? workspace_size
-                       : trans_workspace_size;
 
   size_t twiddles_size = CPX_TYPE_SIZE * _n0;
   size_t twiddles_size_2d = CPX_TYPE_SIZE * _n1;
 
   if (fft_plan->fft_strategy == CNFFT_FUNC_MANY_DIST1_2D) {
     reservespace_size =
-        CPX_TYPE_SIZE * _n0 * _n0 + CPX_TYPE_SIZE * _n1 * _n1; /* DFT matrix */
+        (CPX_TYPE_SIZE * _n0 * _n0 + CPX_TYPE_SIZE * _n1 * _n1) *
+        2; /* DFT matrix */
     workspace_size = CPX_TYPE_SIZE * _n1 * _n0 * batch * 6;
   } else if (fft_plan->fft_strategy == CNFFT_FUNC_TWO_LEVEL_STOCKHAM) {
     reservespace_size = sizeof(int) * (FFT_MAXFACTORS) /* factors */
-                        + sizeof(int) * (FFT_MAXFACTORS) + twiddles_size +
-                        DFT_TABLE_SIZE + twiddles_size_2d +
-                        DFT_TABLE_SIZE; /* twiddles */
+                        + sizeof(int) * (FFT_MAXFACTORS) + twiddles_size * 2 +
+                        DFT_TABLE_SIZE * 2 + twiddles_size_2d * 2 +
+                        DFT_TABLE_SIZE * 2; /* twiddles */
+    workspace_size = buffer_size * 3;
   }
 
   fft_plan->workspace_size = workspace_size;
   fft_plan->reservespace_size = reservespace_size;
 
   // printf("%ld, %ld\n\n", workspace_size, reservespace_size);
-  return status;
+  return MLUOP_STATUS_SUCCESS;
 }
 
 mluOpStatus_t MLUOP_WIN_API mluOpAllocateRFFT2D(
@@ -1438,7 +1407,7 @@ mluOpStatus_t MLUOP_WIN_API mluOpAllocateRFFT2D(
 mluOpStatus_t MLUOP_WIN_API mluOpMakeFFTPlanC2C1D(
     mluOpHandle_t handle, mluOpFFTPlan_t fft_plan,
     mluOpTensorDescriptor_t input_desc, mluOpTensorDescriptor_t output_desc,
-    const int rank, const int *n, const int direction) {
+    const int rank, const int *n) {
   // reservespace_addr_ = mlu_runtime_.allocate(reservespace_size_)
   // st = CNAME(openfft_allocate_c2c_plan_1d)(nfft, fin, fout, dir);
 
@@ -1453,35 +1422,47 @@ mluOpStatus_t MLUOP_WIN_API mluOpMakeFFTPlanC2C1D(
     case CNFFT_COMPLEX_FLOAT2COMPLEX_FLOAT:
       if (fft_plan->istride == 1) {
         fftGenerateTwiddles<float>(fft_plan->twiddles, fft_plan->twiddles_end,
-                                   fft_plan->factors, n[0], direction);
+                                   fft_plan->factors, n[0], FFT_FORWARD);
+        fftGenerateTwiddles<float>(fft_plan->twiddles_inv,
+                                   fft_plan->twiddles_inv_end,
+                                   fft_plan->factors, n[0], FFT_BACKWARD);
       } else {
         fftGenerateTwiddlesColumn<float>(fft_plan->twiddles,
                                          fft_plan->twiddles_end,
-                                         fft_plan->factors, n[0], direction);
+                                         fft_plan->factors, n[0], FFT_FORWARD);
+        fftGenerateTwiddlesColumn<float>(fft_plan->twiddles_inv,
+                                         fft_plan->twiddles_inv_end,
+                                         fft_plan->factors, n[0], FFT_BACKWARD);
       }
 
       fftGenerateDftMatrix<float>(fft_plan->dft_matrix, fft_plan->factors, n[0],
-                                  direction);
+                                  FFT_FORWARD);
+      fftGenerateDftMatrix<float>(fft_plan->idft_matrix, fft_plan->factors,
+                                  n[0], FFT_BACKWARD);
       break;
     case CNFFT_HALF2COMPLEX_HALF:
     case CNFFT_COMPLEX_HALF2HALF:
     case CNFFT_COMPLEX_HALF2COMPLEX_HALF:
-      // fftGenerateTwiddles<half>(fft_plan->twiddles,
-      //                           fft_plan->factors,
-      //                           n[0],
-      //                           direction);
 
-      // TODO(zrg): need to copy twiddles to device, and convert to half.
       if (fft_plan->istride == 1) {
         fftGenerateTwiddles<float>(fft_plan->twiddles, fft_plan->twiddles_end,
-                                   fft_plan->factors, n[0], direction);
+                                   fft_plan->factors, n[0], FFT_FORWARD);
+        fftGenerateTwiddles<float>(fft_plan->twiddles_inv,
+                                   fft_plan->twiddles_inv_end,
+                                   fft_plan->factors, n[0], FFT_BACKWARD);
       } else {
         fftGenerateTwiddlesColumn<float>(fft_plan->twiddles,
                                          fft_plan->twiddles_end,
-                                         fft_plan->factors, n[0], direction);
+                                         fft_plan->factors, n[0], FFT_FORWARD);
+        fftGenerateTwiddlesColumn<float>(fft_plan->twiddles_inv,
+                                         fft_plan->twiddles_inv_end,
+                                         fft_plan->factors, n[0], FFT_BACKWARD);
       }
+
       fftGenerateDftMatrix<float>(fft_plan->dft_matrix, fft_plan->factors, n[0],
-                                  direction);
+                                  FFT_FORWARD);
+      fftGenerateDftMatrix<float>(fft_plan->idft_matrix, fft_plan->factors,
+                                  n[0], FFT_BACKWARD);
       break;
     default:
       break;
@@ -1502,7 +1483,7 @@ mluOpStatus_t MLUOP_WIN_API mluOpMakeFFTPlanC2C1D(
 mluOpStatus_t MLUOP_WIN_API mluOpMakeFFTPlanC2C2D(
     mluOpHandle_t handle, mluOpFFTPlan_t fft_plan,
     mluOpTensorDescriptor_t input_desc, mluOpTensorDescriptor_t output_desc,
-    const int rank, const int *n, const int direction) {
+    const int rank, const int *n) {
   if (fft_plan->idist == 1 && fft_plan->odist == 1 &&
       fft_plan->istride == fft_plan->batch &&
       fft_plan->inembed[0] == fft_plan->n[0] &&
@@ -1526,22 +1507,17 @@ mluOpStatus_t MLUOP_WIN_API mluOpMakeFFTPlanC2C2D(
       case CNFFT_COMPLEX_FLOAT2COMPLEX_FLOAT:
         fft_plan->dft_matrix = new float[n[1] * n[1] * 2];
         fft_plan->dft_matrix_2d = new float[n[0] * n[0] * 2];
+        fft_plan->idft_matrix = new float[n[1] * n[1] * 2];
+        fft_plan->idft_matrix_2d = new float[n[0] * n[0] * 2];
 
         fftGenerateDftMatrixKernelNoPad<float>((float *)fft_plan->dft_matrix,
-                                               n[1], direction);
-        // {
-        //   float * buf = (float *)fft_plan->dft_matrix;
-        // int n1 = n[1];
-        // for(int i = 0; i <3; i ++) {
-        //     for(int j = 0; j <2; j ++) {
-
-        //   printf("dft (%f, %f)  ", (buf)[(i*n1+j)],(buf)[(i*n1+j)+n1*n1]);
-        // }
-        // printf("\n");
-        // }
-        // }
+                                               n[1], FFT_FORWARD);
         fftGenerateDftMatrixKernelNoPad<float>((float *)fft_plan->dft_matrix_2d,
-                                               n[0], direction);
+                                               n[0], FFT_FORWARD);
+        fftGenerateDftMatrixKernelNoPad<float>((float *)fft_plan->idft_matrix,
+                                               n[1], FFT_BACKWARD);
+        fftGenerateDftMatrixKernelNoPad<float>(
+            (float *)fft_plan->idft_matrix_2d, n[0], FFT_BACKWARD);
         break;
       case CNFFT_HALF2COMPLEX_HALF:
       case CNFFT_COMPLEX_HALF2HALF:
@@ -1562,29 +1538,53 @@ mluOpStatus_t MLUOP_WIN_API mluOpMakeFFTPlanC2C2D(
       case CNFFT_FLOAT2COMPLEX_FLOAT:
       case CNFFT_COMPLEX_FLOAT2FLOAT:
       case CNFFT_COMPLEX_FLOAT2COMPLEX_FLOAT:
+
         fftGenerateTwiddles<float>(fft_plan->twiddles, fft_plan->twiddles_end,
-                                   fft_plan->factors, n[1], direction);
+                                   fft_plan->factors, n[1], FFT_FORWARD);
         fftGenerateDftMatrix<float>(fft_plan->dft_matrix, fft_plan->factors,
-                                    n[1], direction);
-        fftGenerateTwiddlesColumn<float>(fft_plan->twiddles_2d,
-                                         fft_plan->twiddles_2d_end,
-                                         fft_plan->factors_2d, n[0], direction);
+                                    n[1], FFT_FORWARD);
+        fftGenerateTwiddlesColumn<float>(
+            fft_plan->twiddles_2d, fft_plan->twiddles_2d_end,
+            fft_plan->factors_2d, n[0], FFT_FORWARD);
         fftGenerateDftMatrix<float>(fft_plan->dft_matrix_2d,
-                                    fft_plan->factors_2d, n[0], direction);
+                                    fft_plan->factors_2d, n[0], FFT_FORWARD);
+
+        fftGenerateTwiddles<float>(fft_plan->twiddles_inv,
+                                   fft_plan->twiddles_inv_end,
+                                   fft_plan->factors, n[1], FFT_BACKWARD);
+        fftGenerateDftMatrix<float>(fft_plan->idft_matrix, fft_plan->factors,
+                                    n[1], FFT_BACKWARD);
+        fftGenerateTwiddlesColumn<float>(
+            fft_plan->twiddles_inv_2d, fft_plan->twiddles_inv_2d_end,
+            fft_plan->factors_2d, n[0], FFT_BACKWARD);
+        fftGenerateDftMatrix<float>(fft_plan->idft_matrix_2d,
+                                    fft_plan->factors_2d, n[0], FFT_BACKWARD);
+
         break;
       case CNFFT_HALF2COMPLEX_HALF:
       case CNFFT_COMPLEX_HALF2HALF:
       case CNFFT_COMPLEX_HALF2COMPLEX_HALF:
         // TODO(zrg): need to copy twiddles to device, and convert to half.
         fftGenerateTwiddles<float>(fft_plan->twiddles, fft_plan->twiddles_end,
-                                   fft_plan->factors, n[1], direction);
+                                   fft_plan->factors, n[1], FFT_FORWARD);
         fftGenerateDftMatrix<float>(fft_plan->dft_matrix, fft_plan->factors,
-                                    n[1], direction);
-        fftGenerateTwiddlesColumn<float>(fft_plan->twiddles_2d,
-                                         fft_plan->twiddles_2d_end,
-                                         fft_plan->factors_2d, n[0], direction);
+                                    n[1], FFT_FORWARD);
+        fftGenerateTwiddlesColumn<float>(
+            fft_plan->twiddles_2d, fft_plan->twiddles_2d_end,
+            fft_plan->factors_2d, n[0], FFT_FORWARD);
         fftGenerateDftMatrix<float>(fft_plan->dft_matrix_2d,
-                                    fft_plan->factors_2d, n[0], direction);
+                                    fft_plan->factors_2d, n[0], FFT_FORWARD);
+
+        fftGenerateTwiddles<float>(fft_plan->twiddles_inv,
+                                   fft_plan->twiddles_inv_end,
+                                   fft_plan->factors, n[1], FFT_BACKWARD);
+        fftGenerateDftMatrix<float>(fft_plan->idft_matrix, fft_plan->factors,
+                                    n[1], FFT_BACKWARD);
+        fftGenerateTwiddlesColumn<float>(
+            fft_plan->twiddles_inv_2d, fft_plan->twiddles_inv_2d_end,
+            fft_plan->factors_2d, n[0], FFT_BACKWARD);
+        fftGenerateDftMatrix<float>(fft_plan->idft_matrix_2d,
+                                    fft_plan->factors_2d, n[0], FFT_BACKWARD);
         break;
       default:
         break;
@@ -1601,7 +1601,7 @@ mluOpStatus_t MLUOP_WIN_API mluOpMakeFFTPlanC2C2D(
 mluOpStatus_t MLUOP_WIN_API mluOpMakeFFTPlanR2C2D(
     mluOpHandle_t handle, mluOpFFTPlan_t fft_plan,
     mluOpTensorDescriptor_t input_desc, mluOpTensorDescriptor_t output_desc,
-    const int rank, const int *n, const int direction) {
+    const int rank, const int *n) {
   if (fft_plan->idist == 1 && fft_plan->odist == 1 &&
       fft_plan->istride == fft_plan->batch) {
     fft_plan->fft_strategy = CNFFT_FUNC_MANY_DIST1_2D;
@@ -1620,9 +1620,9 @@ mluOpStatus_t MLUOP_WIN_API mluOpMakeFFTPlanR2C2D(
         fft_plan->dft_matrix_2d = new float[n[0] * n[0] * 2];
 
         fftGenerateHalfDftMatrixKernelNoPad<float>(
-            (float *)fft_plan->dft_matrix, n[1], direction);
+            (float *)fft_plan->dft_matrix, n[1], FFT_FORWARD);
         fftGenerateDftMatrixKernelNoPad<float>((float *)fft_plan->dft_matrix_2d,
-                                               n[0], direction);
+                                               n[0], FFT_FORWARD);
         break;
       case CNFFT_HALF2COMPLEX_HALF:
       case CNFFT_COMPLEX_HALF2HALF:
@@ -1648,7 +1648,7 @@ mluOpStatus_t MLUOP_WIN_API mluOpMakeFFTPlanR2C2D(
 mluOpStatus_t MLUOP_WIN_API mluOpMakeFFTPlanC2R2D(
     mluOpHandle_t handle, mluOpFFTPlan_t fft_plan,
     mluOpTensorDescriptor_t input_desc, mluOpTensorDescriptor_t output_desc,
-    const int rank, const int *n, const int direction) {
+    const int rank, const int *n) {
   if (fft_plan->idist == 1 && fft_plan->odist == 1 &&
       fft_plan->istride == fft_plan->batch) {
     fft_plan->fft_strategy = CNFFT_FUNC_MANY_DIST1_2D;
@@ -1700,8 +1700,6 @@ mluOpStatus_t MLUOP_WIN_API mluOpMakeFFTPlanMany(
     mluOpTensorDescriptor_t input_desc, mluOpTensorDescriptor_t output_desc,
     const int rank, const int *n, size_t *reservespace_size,
     size_t *workspace_size) {
-  // TODO(zrg): fix bug direction
-  const int direction = FFT_FORWARD;
   // bad param check
   const std::string make_plan_api = "[mluOpMakeFFTPlanMany]";
   // plan NULL check
@@ -1990,7 +1988,7 @@ mluOpStatus_t MLUOP_WIN_API mluOpMakeFFTPlanMany(
         status = makeRFFT1dPolicy(handle, fft_plan);
       } else if (rank == 2) {
         status = mluOpMakeFFTPlanR2C2D(handle, fft_plan, input_desc,
-                                       output_desc, rank, n, direction);
+                                       output_desc, rank, n);
       }
     }; break;
     case CNFFT_COMPLEX_HALF2HALF:
@@ -2000,7 +1998,7 @@ mluOpStatus_t MLUOP_WIN_API mluOpMakeFFTPlanMany(
         status = makeIRFFT1dPolicy(handle, fft_plan);
       } else if (rank == 2) {
         status = mluOpMakeFFTPlanC2R2D(handle, fft_plan, input_desc,
-                                       output_desc, rank, n, direction);
+                                       output_desc, rank, n);
       }
     }; break;
     case CNFFT_COMPLEX_HALF2COMPLEX_HALF:
@@ -2026,7 +2024,7 @@ mluOpStatus_t MLUOP_WIN_API mluOpMakeFFTPlanMany(
 
         if (fft_plan->prime == 0) {
           status = mluOpMakeFFTPlanC2C1D(handle, fft_plan, input_desc,
-                                         output_desc, rank, n, direction);
+                                         output_desc, rank, n);
 
         } else {
           status = makeFFT1dPolicy(handle, fft_plan);
@@ -2040,7 +2038,7 @@ mluOpStatus_t MLUOP_WIN_API mluOpMakeFFTPlanMany(
         // status = makeFFT1dPolicy(handle, fft_plan);
         // C2C 1D
         status = mluOpMakeFFTPlanC2C2D(handle, fft_plan, input_desc,
-                                       output_desc, rank, n, direction);
+                                       output_desc, rank, n);
       }
     }; break;
   }
@@ -2076,12 +2074,20 @@ mluOpStatus_t MLUOP_WIN_API mluOpDestroyFFTPlan(mluOpFFTPlan_t fft_plan) {
     delete (char *)fft_plan->twiddles;
   }
 
+  if (fft_plan->twiddles_inv != NULL) {
+    delete (char *)fft_plan->twiddles_inv;
+  }
+
   if (fft_plan->factors_2d != NULL) {
     delete fft_plan->factors_2d;
   }
 
   if (fft_plan->twiddles_2d != NULL) {
     delete (char *)fft_plan->twiddles_2d;
+  }
+
+  if (fft_plan->twiddles_inv_2d != NULL) {
+    delete (char *)fft_plan->twiddles_inv_2d;
   }
 
   if (fft_plan->dft_matrix != NULL) {
@@ -2091,6 +2097,15 @@ mluOpStatus_t MLUOP_WIN_API mluOpDestroyFFTPlan(mluOpFFTPlan_t fft_plan) {
   if (fft_plan->dft_matrix_2d != NULL) {
     delete (char *)fft_plan->dft_matrix_2d;
   }
+
+  if (fft_plan->idft_matrix != NULL) {
+    delete (char *)fft_plan->idft_matrix;
+  }
+
+  if (fft_plan->idft_matrix_2d != NULL) {
+    delete (char *)fft_plan->idft_matrix_2d;
+  }
+
   delete fft_plan;
   return MLUOP_STATUS_SUCCESS;
 }
