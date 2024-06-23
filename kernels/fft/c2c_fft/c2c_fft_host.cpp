@@ -1766,14 +1766,36 @@ mluOpStatus_t execFFTc2c2d(mluOpHandle_t handle, mluOpFFTPlan_t fft_plan,
     cnrtDim3_t k_dim;
     cnrtFunctionType_t k_type;
     policyFunc(handle, &k_dim, &k_type);
+    uint64_t idist = 0, odist = 0;  // bytes
+    switch (fft_plan->fft_type) {
+      case CNFFT_COMPLEX_HALF2COMPLEX_HALF: {
+        idist = fft_plan->idist * (2 * 2);
+        odist = fft_plan->odist * (2 * 2);
+      } break;
+      case CNFFT_COMPLEX_FLOAT2COMPLEX_FLOAT: {
+        idist = fft_plan->idist * (2 * 4);
+        odist = fft_plan->odist * (2 * 4);
+      }; break;
+      default: {
+        LOG(ERROR) << api << ": invalid c2c 2d fft type.";
+        status = MLUOP_STATUS_NOT_SUPPORTED;
+        return status;
+      }
+    }
 
-    status = kernelFFT2dButterflyRow(k_dim, k_type, handle->queue, fft_plan,
-                                     direction, FFT_IFFT);
-    INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
+    for (int batch_id = 0; batch_id < fft_plan->batch; batch_id++) {
+      status = kernelFFT2dButterflyRow(k_dim, k_type, handle->queue, fft_plan,
+                                       direction, FFT_IFFT);
+      INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
 
-    status = kernelFFT2dButterflyColumn(k_dim, k_type, handle->queue, fft_plan,
-                                        direction, FFT_IFFT);
-    INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
+      status = kernelFFT2dButterflyColumn(k_dim, k_type, handle->queue,
+                                          fft_plan, direction, FFT_IFFT);
+      INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
+      fft_plan->mlu_addrs.input =
+          (void *)((uint64_t)(fft_plan->mlu_addrs.input) + idist);
+      fft_plan->mlu_addrs.output =
+          (void *)((uint64_t)(fft_plan->mlu_addrs.output) + odist);
+    }
   }
 
   if (fft_plan->fft_strategy == CNFFT_FUNC_MANY_DIST1_2D) {

@@ -273,8 +273,6 @@ __mlu_func__ void computeMutiStageOnchip(DT *input, DT *output, int *factors,
     small_factors = factors + small_factors_offset;
 
     if (__is_ipu()) {
-      MLULOG("last stage radix: %d, section_num: %d\n", radix, section_num);
-
       if (repeat_num > 0 || taskId < remain_num) {
         if (0) {
           for (int t = t_start; t < t_end; t++) {

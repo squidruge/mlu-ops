@@ -312,7 +312,6 @@ fftGenerateC2RDftMatrixKernelNoPad(DT *dft_matrix, const int radix) {
         dft_matrix[2 * half * k + j] = 2 * (DT)cos(phase);          // r
         dft_matrix[2 * half * k + j + half] = -2 * (DT)sin(phase);  // i neg
       }
-
     }  // radix
   }    // butterfly_num
   return MLUOP_STATUS_SUCCESS;
@@ -717,184 +716,146 @@ mluOpStatus_t MLUOP_WIN_API fftTwoStepFactor(mluOpFFTPlan_t fft_plan,
   int large_radix = 1;
   int small_factors_offset = 22 * 5;
 
-  // while (n > 1) {
-  //   if ((n % 2048) == 0 && 0) {
-  //     r = 2048;
-  //     // set small factors
-  //   } else if ((n % 1024) == 0 && 0) {
-  //     r = 1024;
-  //   }  else if ((n % 512) == 0 && 0) {
-  //     r = 512;
-  //   }else if ((n % 256) == 0) {
-  //     r = 256;
-  //   } else if ((n % 128) == 0) {
-  //     r = 128;
-  //   } else if ((n % 64) == 0) {
-  //     r = 64;
-  //   } else if ((n % 16) == 0) {
-  //     r = 16;
-  //   } else if ((n % 6561) == 0 && 0) {
-  //     r = 6561;
-  //   } else if ((n % 2187) == 0) {
-  //     r = 2187;
-  //   } else if ((n % 729) == 0) {
-  //     r = 729;
-  //   } else if ((n % 243) == 0) {
-  //     r = 243;
-  //   } else if ((n % 81) == 0) {
-  //     r = 81;
-  //   } else if ((n % 27) == 0) {
-  //     r = 27;
-  //   } else if ((n % 9) == 0) {
-  //     r = 9;
-  //   } else if ((n % 3) == 0) {
-  //     r = 3;
-  //   } else {
-  //     // prime
-  //     r = n;
-  //   }
+  int row_major = (fft_plan->istride == 1);
 
   while (n > 1) {
-    switch (_n) {
-        // case 2048:
-        //   r = 2048;
-        //   break;
+    if (row_major) {
+      switch (_n) {
+        case (32 * 17):
+          if (n % 32 == 0) {
+            r = 32;
+          } else if ((n % 17) == 0) {
+            r = 17;
+          }
+          break;
 
-        // case 2048:
-        //   if (n % 16 == 0) {
-        //     r = 16;
-        //   } else if ((n % 8) == 0) {
-        //     r = 8;
-        //   }
-        //   break;
+        case 1024:
+          if (n % 32 == 0) {
+            r = 32;
+          }
+          break;
 
-      case (32 * 17):
-        if (n % 32 == 0) {
-          r = 32;
-        } else if ((n % 17) == 0) {
-          r = 17;
+        case 2048:
+          if (n % 64 == 0) {
+            r = 64;
+          } else if ((n % 32) == 0) {
+            r = 32;
+          }
+          break;
+
+        case 4096:
+          if (n % 64 == 0) {
+            r = 64;
+          }
+          break;
+
+        case 6000:
+          r = 6000;
+          break;
+          // case 6000:
+          //   if (n % 300 == 0) {
+          //     r = 300;
+          //   } else if ((n % 20) == 0) {
+          //     r = 20;
+          //   }
+          //   break;
+
+        case 7000:
+          r = 7000;
+          break;
+
+          // case 7000:
+          //   if (n % 280 == 0) {
+          //     r = 280;
+          //   } else if ((n % 25) == 0) {
+          //     r = 25;
+          //   }
+          //   break;
+
+        case 8000:
+          if (n % 160 == 0) {
+            r = 160;
+          } else if ((n % 50) == 0) {
+            r = 50;
+          }
+          break;
+
+        case 9000:
+          if (n % 500 == 0) {
+            r = 500;
+          } else if ((n % 18) == 0) {
+            r = 18;
+          }
+          break;
+
+        case 10000:
+          if (n % 500 == 0) {
+            r = 500;
+          } else if ((n % 20) == 0) {
+            r = 20;
+          }
+          break;
+
+        case 11000:
+          if (n % 275 == 0) {
+            r = 275;
+          } else if ((n % 40) == 0) {
+            r = 40;
+          }
+          break;
+
+        case 12000:
+          if (n % 400 == 0) {
+            r = 400;
+          } else if ((n % 30) == 0) {
+            r = 30;
+          }
+          break;
+
+        case 13000:
+          if (n % 650 == 0) {
+            r = 650;
+          } else if ((n % 20) == 0) {
+            r = 20;
+          }
+          break;
+
+          // case 14000:
+          //   if (n % 40 == 0) {
+          //     r = 40;
+          //   } else if ((n % 25) == 0) {
+          //     r = 25;
+          //   } else if ((n % 14) == 0) {
+          //     r = 14;
+          //   }
+          //   break;
+
+        case 14000:
+          if (n % 350 == 0) {
+            r = 350;
+          } else if ((n % 40) == 0) {
+            r = 40;
+          }
+          break;
+
+        default:
+          if (n <= 64) {
+            r = n;
+          } else {
+            int *cur_facbuf = &facbuf[small_factors_offset];
+            searchLargeRadix(fft_plan, r, cur_facbuf, stage_num + 1, n);
+          }
+          break;
+      }
+    } else {
+      // column major
+      for (int cur_r = 64; cur_r > 1; cur_r--) {
+        if (n % cur_r == 0) {
+          r = cur_r;
+          break;
         }
-        break;
-
-      case 1024:
-        if (n % 32 == 0) {
-          r = 32;
-        }
-        break;
-
-      case 2048:
-        if (n % 64 == 0) {
-          r = 64;
-        } else if ((n % 32) == 0) {
-          r = 32;
-        }
-        break;
-
-      case 4096:
-        if (n % 64 == 0) {
-          r = 64;
-        }
-        break;
-
-      case 6000:
-        r = 6000;
-        break;
-        // case 6000:
-        //   if (n % 300 == 0) {
-        //     r = 300;
-        //   } else if ((n % 20) == 0) {
-        //     r = 20;
-        //   }
-        //   break;
-
-      case 7000:
-        r = 7000;
-        break;
-
-        // case 7000:
-        //   if (n % 280 == 0) {
-        //     r = 280;
-        //   } else if ((n % 25) == 0) {
-        //     r = 25;
-        //   }
-        //   break;
-
-      case 8000:
-        if (n % 160 == 0) {
-          r = 160;
-        } else if ((n % 50) == 0) {
-          r = 50;
-        }
-        break;
-
-      case 9000:
-        if (n % 500 == 0) {
-          r = 500;
-        } else if ((n % 18) == 0) {
-          r = 18;
-        }
-        break;
-
-      case 10000:
-        if (n % 500 == 0) {
-          r = 500;
-        } else if ((n % 20) == 0) {
-          r = 20;
-        }
-        break;
-
-      case 11000:
-        if (n % 275 == 0) {
-          r = 275;
-        } else if ((n % 40) == 0) {
-          r = 40;
-        }
-        break;
-
-      case 12000:
-        if (n % 400 == 0) {
-          r = 400;
-        } else if ((n % 30) == 0) {
-          r = 30;
-        }
-        break;
-
-      case 13000:
-        if (n % 650 == 0) {
-          r = 650;
-        } else if ((n % 20) == 0) {
-          r = 20;
-        }
-        break;
-
-        // case 14000:
-        //   if (n % 40 == 0) {
-        //     r = 40;
-        //   } else if ((n % 25) == 0) {
-        //     r = 25;
-        //   } else if ((n % 14) == 0) {
-        //     r = 14;
-        //   }
-        //   break;
-
-      case 14000:
-        if (n % 350 == 0) {
-          r = 350;
-        } else if ((n % 40) == 0) {
-          r = 40;
-        }
-        break;
-
-      default:
-        if (n <= 64) {
-          r = n;
-        } else {
-          int *cur_facbuf = &facbuf[small_factors_offset];
-          searchLargeRadix(fft_plan, r, cur_facbuf, stage_num + 1, n);
-        }
-        break;
+      }
     }
-
     n /= r;
     in_stride = _n / r;
     section_num = n;
