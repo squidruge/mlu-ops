@@ -340,6 +340,8 @@ mluOpStatus_t MLUOP_WIN_API fftGenerateDftMatrix(void *&_dft_matrix,
                                                  int *factors, const int _nfft,
                                                  const int dir) {
   // allocate space for dft_matrix_table and dft_matrix
+  const std::string api = "[fftGenerateDftMatrix]";
+
   const int K_num = 64 / sizeof(DT);
   DT *dft_matrix = new DT[DFT_TABLE_SIZE];  // complex *2(large+small)
   dft_table_entry *dft_matrix_table = (dft_table_entry *)dft_matrix;
@@ -393,9 +395,9 @@ mluOpStatus_t MLUOP_WIN_API fftGenerateDftMatrix(void *&_dft_matrix,
           cur_offset += cur_small_radix * align_K;
 
           if (cur_table_entry == MAX_DFT_MATRIX_NR) {
-            LOG(ERROR) << "[fftGenerateDftMatrix]: too much dft matrices";
+            LOG(ERROR) << api << ": too much dft matrices.";
+            return MLUOP_STATUS_NOT_SUPPORTED;
           }
-
           break;
         }
 
@@ -489,41 +491,6 @@ mluOpStatus_t MLUOP_WIN_API fftFactor(const int _n, int *facbuf,
     // }
 
     switch (_n) {
-      case 9:
-        if (n % 3 == 0) {
-          r = 3;
-        } else if ((n % 2) == 0) {
-          r = 2;
-        }
-        break;
-
-      case 12:
-        if (n % 4 == 0) {
-          r = 4;
-        } else if ((n % 3) == 0) {
-          r = 3;
-        }
-        break;
-
-        // case 16:
-        //   if (n % 4 == 0) {
-        //     r = 4;
-        //   } else if ((n % 2) == 0) {
-        //     r = 2;
-        //   }
-        //   break;
-
-      case 50:
-        r = 50;
-        break;
-        // case 50:
-        //   if (n % 10 == 0) {
-        //     r = 10;
-        //   } else if ((n % 5) == 0) {
-        //     r = 5;
-        //   }
-        //   break;
-
       case 128:
         if (n % 16 == 0) {
           r = 16;

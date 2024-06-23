@@ -35,11 +35,12 @@ __nram__ char
 
 __wram__ char wram_buffer[MAX_WRAM_SIZE];
 
-__mlu_global__ void MLUKernelFFTButterfly(void *input, void *output,
-                                          int *factors, void *twiddles,
-                                          void *twiddles_end, void *dft_matrix,
-                                          void *buffer, int batch, int fft_flag,
-                                          int direction, int dtype_size) {
+__mlu_global__ void MLUKernelFFT1dButterflyRow(void *input, void *output,
+                                               int *factors, void *twiddles,
+                                               void *twiddles_end,
+                                               void *dft_matrix, void *buffer,
+                                               int batch, int fft_flag,
+                                               int direction, int dtype_size) {
   switch (dtype_size) {
     case (MLUOP_DTYPE_COMPLEX_FLOAT):
     case (MLUOP_DTYPE_FLOAT): {
@@ -62,12 +63,10 @@ __mlu_global__ void MLUKernelFFTButterfly(void *input, void *output,
   }
 }
 
-__mlu_global__ void MLUKernelFFTButterflyColumn(void *input, void *output,
-                                                int *factors, void *twiddles,
-                                                void *twiddles_end,
-                                                void *dft_matrix, void *buffer,
-                                                int batch, int fft_flag,
-                                                int direction, int dtype_size) {
+__mlu_global__ void MLUKernelFFT1dButterflyColumn(
+    void *input, void *output, int *factors, void *twiddles, void *twiddles_end,
+    void *dft_matrix, void *buffer, int batch, int fft_flag, int direction,
+    int dtype_size) {
   switch (dtype_size) {
     case (MLUOP_DTYPE_COMPLEX_FLOAT):
     case (MLUOP_DTYPE_FLOAT): {
@@ -93,9 +92,10 @@ __mlu_global__ void MLUKernelFFTButterflyColumn(void *input, void *output,
 mluOpStatus_t MLUOP_WIN_API kernelFFT2dButterflyColumn(
     cnrtDim3_t k_dim, cnrtFunctionType_t k_type, cnrtQueue_t queue,
     mluOpFFTPlan_t fft_plan, int direction, FFTFlag flag) {
-  VLOG(5) << "Launch Kernel kernelFFTButterfly <<Union" << k_type / CORE_DIM
-          << ", " << k_dim.x << ", " << k_dim.y << ", " << k_dim.z << ">>>";
-  KERNEL_CHECK((MLUKernelFFTButterflyColumn<<<k_dim, k_type, queue>>>(
+  VLOG(5) << "Launch Kernel kernelFFT1dButterflyRow <<Union"
+          << k_type / CORE_DIM << ", " << k_dim.x << ", " << k_dim.y << ", "
+          << k_dim.z << ">>>";
+  KERNEL_CHECK((MLUKernelFFT1dButterflyColumn<<<k_dim, k_type, queue>>>(
       fft_plan->mlu_addrs.output, fft_plan->mlu_addrs.output,
       fft_plan->mlu_addrs.factors_2d, fft_plan->mlu_addrs.twiddles_2d,
       fft_plan->mlu_addrs.twiddles_2d_end, fft_plan->mlu_addrs.dft_matrix_2d,
@@ -105,12 +105,13 @@ mluOpStatus_t MLUOP_WIN_API kernelFFT2dButterflyColumn(
   return MLUOP_STATUS_SUCCESS;
 }
 
-mluOpStatus_t MLUOP_WIN_API kernelFFTButterflyColumn(
+mluOpStatus_t MLUOP_WIN_API kernelFFT1dButterflyColumn(
     cnrtDim3_t k_dim, cnrtFunctionType_t k_type, cnrtQueue_t queue,
     mluOpFFTPlan_t fft_plan, int direction, FFTFlag flag) {
-  VLOG(5) << "Launch Kernel kernelFFTButterfly <<Union" << k_type / CORE_DIM
-          << ", " << k_dim.x << ", " << k_dim.y << ", " << k_dim.z << ">>>";
-  KERNEL_CHECK((MLUKernelFFTButterflyColumn<<<k_dim, k_type, queue>>>(
+  VLOG(5) << "Launch Kernel kernelFFT1dButterflyRow <<Union"
+          << k_type / CORE_DIM << ", " << k_dim.x << ", " << k_dim.y << ", "
+          << k_dim.z << ">>>";
+  KERNEL_CHECK((MLUKernelFFT1dButterflyColumn<<<k_dim, k_type, queue>>>(
       fft_plan->mlu_addrs.input, fft_plan->mlu_addrs.output,
       fft_plan->mlu_addrs.factors, fft_plan->mlu_addrs.twiddles,
       fft_plan->mlu_addrs.twiddles_end, fft_plan->mlu_addrs.dft_matrix,
@@ -123,9 +124,10 @@ mluOpStatus_t MLUOP_WIN_API kernelFFTButterflyColumn(
 mluOpStatus_t MLUOP_WIN_API kernelFFT2dButterflyRow(
     cnrtDim3_t k_dim, cnrtFunctionType_t k_type, cnrtQueue_t queue,
     mluOpFFTPlan_t fft_plan, int direction, FFTFlag flag) {
-  VLOG(5) << "Launch Kernel kernelFFTButterfly <<Union" << k_type / CORE_DIM
-          << ", " << k_dim.x << ", " << k_dim.y << ", " << k_dim.z << ">>>";
-  KERNEL_CHECK((MLUKernelFFTButterfly<<<k_dim, k_type, queue>>>(
+  VLOG(5) << "Launch Kernel kernelFFT1dButterflyRow <<Union"
+          << k_type / CORE_DIM << ", " << k_dim.x << ", " << k_dim.y << ", "
+          << k_dim.z << ">>>";
+  KERNEL_CHECK((MLUKernelFFT1dButterflyRow<<<k_dim, k_type, queue>>>(
       fft_plan->mlu_addrs.input, fft_plan->mlu_addrs.output,
       fft_plan->mlu_addrs.factors, fft_plan->mlu_addrs.twiddles,
       fft_plan->mlu_addrs.twiddles_end, fft_plan->mlu_addrs.dft_matrix,
@@ -135,14 +137,13 @@ mluOpStatus_t MLUOP_WIN_API kernelFFT2dButterflyRow(
   return MLUOP_STATUS_SUCCESS;
 }
 
-mluOpStatus_t MLUOP_WIN_API kernelFFTButterfly(cnrtDim3_t k_dim,
-                                               cnrtFunctionType_t k_type,
-                                               cnrtQueue_t queue,
-                                               mluOpFFTPlan_t fft_plan,
-                                               int direction, FFTFlag flag) {
-  VLOG(5) << "Launch Kernel kernelFFTButterfly <<Union" << k_type / CORE_DIM
-          << ", " << k_dim.x << ", " << k_dim.y << ", " << k_dim.z << ">>>";
-  KERNEL_CHECK((MLUKernelFFTButterfly<<<k_dim, k_type, queue>>>(
+mluOpStatus_t MLUOP_WIN_API kernelFFT1dButterflyRow(
+    cnrtDim3_t k_dim, cnrtFunctionType_t k_type, cnrtQueue_t queue,
+    mluOpFFTPlan_t fft_plan, int direction, FFTFlag flag) {
+  VLOG(5) << "Launch Kernel kernelFFT1dButterflyRow <<Union"
+          << k_type / CORE_DIM << ", " << k_dim.x << ", " << k_dim.y << ", "
+          << k_dim.z << ">>>";
+  KERNEL_CHECK((MLUKernelFFT1dButterflyRow<<<k_dim, k_type, queue>>>(
       fft_plan->mlu_addrs.input, fft_plan->mlu_addrs.output,
       fft_plan->mlu_addrs.factors, fft_plan->mlu_addrs.twiddles,
       fft_plan->mlu_addrs.twiddles_end, fft_plan->mlu_addrs.dft_matrix,

@@ -293,13 +293,11 @@ mluOpStatus_t MLUOP_WIN_API setMaxParallelNum(mluOpFFTPlan_t fft_plan,
 mluOpStatus_t MLUOP_WIN_API fftTwoStepFactor(mluOpFFTPlan_t fft_plan,
                                              const int _n, int *facbuf);
 
-mluOpStatus_t MLUOP_WIN_API kernelFFTButterfly(cnrtDim3_t k_dim,
-                                               cnrtFunctionType_t k_type,
-                                               cnrtQueue_t queue,
-                                               mluOpFFTPlan_t fft_plan,
-                                               int direction, FFTFlag flag);
+mluOpStatus_t MLUOP_WIN_API kernelFFT1dButterflyRow(
+    cnrtDim3_t k_dim, cnrtFunctionType_t k_type, cnrtQueue_t queue,
+    mluOpFFTPlan_t fft_plan, int direction, FFTFlag flag);
 
-mluOpStatus_t MLUOP_WIN_API kernelFFTButterflyColumn(
+mluOpStatus_t MLUOP_WIN_API kernelFFT1dButterflyColumn(
     cnrtDim3_t k_dim, cnrtFunctionType_t k_type, cnrtQueue_t queue,
     mluOpFFTPlan_t fft_plan, int direction, FFTFlag flag);
 
