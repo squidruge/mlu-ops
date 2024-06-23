@@ -809,7 +809,6 @@ mluOpStatus_t setFFT2dReserveArea(mluOpHandle_t handle, mluOpFFTPlan_t fft_plan,
         CNRT_CHECK(cnrtMemcpy(fft_plan->mlu_addrs.idft_matrix_2d,
                               fft_plan->idft_matrix_2d,
                               CPX_TYPE_SIZE * _n0 * _n0, cnrtMemcpyHostToDev));
-
       }; break;
       case CNFFT_COMPLEX_HALF2HALF:
       case CNFFT_COMPLEX_FLOAT2FLOAT: {
@@ -1885,12 +1884,21 @@ mluOpStatus_t execFFTc2c2d(mluOpHandle_t handle, mluOpFFTPlan_t fft_plan,
   }
 
   if (fft_plan->fft_strategy == CNFFT_FUNC_MANY_DIST1_2D) {
-    status = computeFFT2dMatMulRow(handle, fft_plan, scale_factor, direction);
-    INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
+    if (direction == FFT_FORWARD) {
+      status = computeFFT2dMatMulRow(handle, fft_plan, scale_factor, direction);
+      INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
 
-    status =
-        computeFFT2dMatMulColumn(handle, fft_plan, scale_factor, direction);
-    INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
+      status =
+          computeFFT2dMatMulColumn(handle, fft_plan, scale_factor, direction);
+      INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
+    } else {
+      status =
+          computeFFT2dMatMulColumn(handle, fft_plan, scale_factor, direction);
+      INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
+
+      status = computeFFT2dMatMulRow(handle, fft_plan, scale_factor, direction);
+      INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
+    }
   }
   return status;
 }
@@ -2038,9 +2046,10 @@ mluOpStatus_t computeFFT2dMatMulColumn(mluOpHandle_t handle,
   int n1 = fft_plan->n[1];
 
   void *dft_matrix_addr = (direction == FFT_FORWARD)
-                              ? fft_plan->mlu_addrs.dft_matrix
-                              : fft_plan->mlu_addrs.idft_matrix;
-  void *in_addr = fft_plan->mlu_addrs.buffer_in;
+                              ? fft_plan->mlu_addrs.dft_matrix_2d
+                              : fft_plan->mlu_addrs.idft_matrix_2d;
+  void *in_addr = (direction == FFT_FORWARD) ? fft_plan->mlu_addrs.buffer_in
+                                             : fft_plan->mlu_addrs.input;
   void *out_addr = fft_plan->mlu_addrs.buffer_out;
   // W[n0 * c][n0] * In[n0][n1 * batch]
   const int m = n0 * 2, k = n0, n = n1 * batch * 2;
@@ -2106,10 +2115,16 @@ mluOpStatus_t computeFFT2dMatMulColumn(mluOpHandle_t handle,
   cnrtDim3_t k_dim;
   cnrtFunctionType_t k_type;
   policyFunc(handle, &k_dim, &k_type);
+  if (direction == FFT_FORWARD) {
+    kernelFFTConjMerge(k_dim, k_type, handle->queue, fft_plan->mlu_addrs.output,
+                       fft_plan->mlu_addrs.buffer_out, n0 * n1 * batch,
+                       in_e_dtype);
+  } else {
+    kernelFFTConjMerge(
+        k_dim, k_type, handle->queue, fft_plan->mlu_addrs.buffer_in,
+        fft_plan->mlu_addrs.buffer_out, n0 * n1 * batch, in_e_dtype);
+  }
 
-  kernelFFTConjMerge(k_dim, k_type, handle->queue, fft_plan->mlu_addrs.output,
-                     fft_plan->mlu_addrs.buffer_out, n0 * n1 * batch,
-                     in_e_dtype);
   cnrtQueueSync(handle->queue);
 
   return status;
@@ -2140,7 +2155,8 @@ mluOpStatus_t computeFFT2dMatMulRow(mluOpHandle_t handle,
   void *dft_matrix_addr = (direction == FFT_FORWARD)
                               ? fft_plan->mlu_addrs.dft_matrix
                               : fft_plan->mlu_addrs.idft_matrix;
-  void *in_addr = fft_plan->mlu_addrs.input;
+  void *in_addr = (direction == FFT_FORWARD) ? fft_plan->mlu_addrs.input
+                                             : fft_plan->mlu_addrs.buffer_in;
   void *out_addr = fft_plan->mlu_addrs.buffer_out;
   // out[n0][n1*2][batch*2] = W[n1 * 2][n1] * In[n0][n1][batch *2]
   const int m = n1 * 2, k = n1, n = batch * 2;
@@ -2230,9 +2246,16 @@ mluOpStatus_t computeFFT2dMatMulRow(mluOpHandle_t handle,
   cnrtFunctionType_t k_type;
   policyFunc(handle, &k_dim, &k_type);
 
-  kernelFFTBatchConjMerge(
-      k_dim, k_type, handle->queue, fft_plan->mlu_addrs.buffer_in,
-      fft_plan->mlu_addrs.buffer_out, n1 * batch, n0, in_e_dtype);
+  if (direction == FFT_FORWARD) {
+    kernelFFTBatchConjMerge(
+        k_dim, k_type, handle->queue, fft_plan->mlu_addrs.buffer_in,
+        fft_plan->mlu_addrs.buffer_out, n1 * batch, n0, in_e_dtype);
+
+  } else {
+    kernelFFTBatchConjMerge(
+        k_dim, k_type, handle->queue, fft_plan->mlu_addrs.output,
+        fft_plan->mlu_addrs.buffer_out, n1 * batch, n0, in_e_dtype);
+  }
 
   cnrtQueueSync(handle->queue);
 
