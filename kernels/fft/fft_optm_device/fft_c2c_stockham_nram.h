@@ -2263,7 +2263,7 @@ __mlu_func__ void computeLargeButterflyFirststageColumn(
     DT *output, DT *input, int large_in_stride, int section_num,
     const DT *twiddles, const DT *dft_matrix, void *nram_buf,
     const int *small_factors, int dir, int nfft, int last_stage,
-    const int para_batch, const int nb0, const int nb1) {
+    const int para_batch, const int nb) {
   // constant
   // const int para_batch = 3;
   const int K_num = 64 / sizeof(DT);
@@ -2416,10 +2416,10 @@ __mlu_func__ void computeLargeButterflyFirststageColumn(
       // para_batch,
       //                GDRAM2NRAM);
       //                 if(0)
-      __memcpy_async(nram_para_load_ping, input + i * 2 * nb1,
+      __memcpy_async(nram_para_load_ping, input + i * 2 * nb,
                      sizeof(DT) * 2 * para_batch, GDRAM2NRAM,
                      sizeof(DT) * 2 * para_batch,
-                     nb1 * large_in_stride * sizeof(DT) * 2, large_radix - 1);
+                     nb * large_in_stride * sizeof(DT) * 2, large_radix - 1);
     }
 
     // pipeline: store-stage
@@ -2435,9 +2435,9 @@ __mlu_func__ void computeLargeButterflyFirststageColumn(
         //                para_batch * sizeof(DT) * 2, NRAM2GDRAM,
         //                nb1 * 2 * sizeof(DT), para_batch * sizeof(DT) * 2,
         //                large_radix - 1);
-        __memcpy_async(output + i * large_radix * 2 * nb1, nram_para_store_ping,
+        __memcpy_async(output + i * large_radix * 2 * nb, nram_para_store_ping,
                        para_batch * sizeof(DT) * 2, NRAM2GDRAM,
-                       nb1 * 2 * sizeof(DT), para_batch * sizeof(DT) * 2,
+                       nb * 2 * sizeof(DT), para_batch * sizeof(DT) * 2,
                        large_radix - 1);
         // __memcpy_async(output + i * large_radix * 2 * para_batch,
         //                nram_para_store_ping,
@@ -2769,7 +2769,7 @@ __mlu_func__ void computeLargeButterflyOtherstagesColumn(
     DT *output, DT *input, const DT *cur_large_twiddles, const DT *_twiddles,
     const DT *dft_matrix, int large_section_num, int large_butterfly_num,
     int large_in_stride, void *nram_buf, const int *small_factors, int nfft,
-    int dir, int last_stage, int para_batch, int nb0, int nb1) {
+    int dir, int last_stage, int para_batch, int nb) {
   // return;
   const dft_table_entry *dft_table = (const dft_table_entry *)dft_matrix;
 
@@ -3012,9 +3012,9 @@ __mlu_func__ void computeLargeButterflyOtherstagesColumn(
           //     nram_para_store.r,
           //     sizeof(DT) * 2 * para_store_num * large_radix, NRAM2GDRAM);
 
-          __memcpy_async(output + (Fout_stride + i) * 2 * nb1,
-                         nram_para_store.r, sizeof(DT) * 2 * para_batch,
-                         NRAM2GDRAM, nb1 * large_out_stride * 2 * sizeof(DT),
+          __memcpy_async(output + (Fout_stride + i) * 2 * nb, nram_para_store.r,
+                         sizeof(DT) * 2 * para_batch, NRAM2GDRAM,
+                         nb * large_out_stride * 2 * sizeof(DT),
                          sizeof(DT) * 2 * para_batch, large_radix - 1);
         } else {
           // // real
@@ -3478,9 +3478,9 @@ __mlu_func__ void computeLargeButterflyLaststageColumn(
     DT *output, DT *input, const DT *cur_large_twiddles, const DT *_twiddles,
     const DT *dft_matrix, int large_section_num, int large_butterfly_num,
     int large_in_stride, void *nram_buf, const int *small_factors, int nfft,
-    int dir, int para_batch, int nb0, int nb1) {
+    int dir, int para_batch, int nb) {
   computeLargeButterflyOtherstagesColumn(
       output, input, cur_large_twiddles, _twiddles, dft_matrix,
       large_section_num, large_butterfly_num, large_in_stride, nram_buf,
-      small_factors, nfft, dir, 1, para_batch, nb0, nb1);
+      small_factors, nfft, dir, 1, para_batch, nb);
 }

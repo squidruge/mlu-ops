@@ -210,6 +210,7 @@ struct mluOpFFTStruct {
   int prime;
   bool is_input_contiguous;
   bool is_output_contiguous;
+  bool is_batch_contiguous;
   size_t reservespace_size;
   size_t workspace_size;
   FFTType fft_type;  // types of fft

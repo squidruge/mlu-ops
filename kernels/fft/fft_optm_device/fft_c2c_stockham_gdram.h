@@ -294,9 +294,12 @@ __mlu_func__ void computeMutiStageOnchip(DT *input, DT *output, int *factors,
 }
 
 template <typename DT>
-__mlu_func__ void computeMutiStageOnchipColumn(
-    DT *input, DT *output, int *factors, DT *twiddles, DT *twiddles_end,
-    const DT *dft_matrix, DT *buffer, int batch, int fft_flag, int direction) {
+__mlu_func__ void computeMutiStageOnchipColumn(DT *input, DT *output,
+                                               int *factors, DT *twiddles,
+                                               DT *twiddles_end,
+                                               const DT *dft_matrix, DT *buffer,
+                                               int batch, int fft_flag,
+                                               int direction, int nb) {
   int total_num = batch;
   int repeat_num = total_num / taskDim;
   int remain_num = total_num % taskDim;
@@ -443,13 +446,11 @@ __mlu_func__ void computeMutiStageOnchipColumn(
         // int radix
 
         // MLULOG("para_batch: %d\n", para_batch);
-        int nb0 = nfft;
-        int nb1 = batch;
 
         computeLargeButterflyFirststageColumn<DT>(
             output_batch, input_batch, in_stride, section_num, twiddles,
             sram_dftmtx, (void *)nram_buf, small_factors, direction, nfft,
-            last_stage, para_batch, nb0, nb1);
+            last_stage, para_batch, nb);
       }
     }
     // __sync();
@@ -512,15 +513,12 @@ __mlu_func__ void computeMutiStageOnchipColumn(
           // int radix
           int para_batch =
               (max_para_batch < (t_end - t)) ? max_para_batch : (t_end - t);
-          // MLULOG("para_batch: %d\n", para_batch);
-          int nb0 = nfft;
-          int nb1 = batch;
-          // if(0)
+
           computeLargeButterflyOtherstagesColumn<DT>(
               output_batch, buffer_batch, (DT *)twiddles, _twiddles,
               sram_dftmtx, section_num, butterfly_num, in_stride,
               (void *)nram_buf, small_factors, nfft, direction, 0, para_batch,
-              nb0, nb1);
+              nb);
         }
       }
     }
@@ -590,15 +588,11 @@ __mlu_func__ void computeMutiStageOnchipColumn(
           // int radix
           int para_batch =
               (max_para_batch < (t_end - t)) ? max_para_batch : (t_end - t);
-          // MLULOG("para_batch: %d\n", para_batch);
-          int nb0 = nfft;
-          int nb1 = batch;
-          // if(0)
+
           computeLargeButterflyLaststageColumn<DT>(
               output_batch, buffer_batch, (DT *)twiddles, _twiddles,
               sram_dftmtx, section_num, butterfly_num, in_stride,
-              (void *)nram_buf, small_factors, nfft, direction, para_batch, nb0,
-              nb1);
+              (void *)nram_buf, small_factors, nfft, direction, para_batch, nb);
         }
       }
     }

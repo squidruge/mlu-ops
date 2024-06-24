@@ -974,47 +974,40 @@ static void configureFFT1dWorkspaceAddrs_v2(mluOpHandle_t handle,
                                             mluOpFFTPlan_t fft_plan,
                                             void *input, void *workspace,
                                             void *output) {
-  VLOG(5) << "Into configure FFT1d Workspace Addrs (zrg)";
+  VLOG(5) << "Into configure FFT1d Workspace Addrs";
   const std::string make_plan_api = "[configureFFT1dWorkspaceAddrs_v2]";
   size_t workspace_size = 0;
   size_t reservespace_size = 0;
 
-  size_t CPX_TYPE_SIZE = 0;
+  // c2c
+  mluOpDataType_t in_c_dtype = fft_plan->input_dtype;
+  mluOpDataType_t out_c_dtype = fft_plan->output_dtype;
 
-  switch (fft_plan->fft_type) {
-    case CNFFT_COMPLEX_HALF2COMPLEX_HALF: {
-      CPX_TYPE_SIZE = 2 * 2;
-    } break;
-    case CNFFT_COMPLEX_FLOAT2COMPLEX_FLOAT: {
-      CPX_TYPE_SIZE = 4 * 2;
-    }; break;
-    default: {
-      LOG(ERROR) << make_plan_api << ": invalid c2c 1d fft type.";
-      return;
-      // return MLUOP_STATUS_BAD_PARAM;
-    }
-  }
+  size_t in_c_dtype_size = mluOpDataTypeBytes(in_c_dtype);
+  size_t out_c_dtype_size = mluOpDataTypeBytes(out_c_dtype);
 
   int batch = fft_plan->batch;
   int nfft = fft_plan->n[0];
 
-  size_t buffer_size = batch * sizeof(CPX_TYPE_SIZE) * nfft;
-  size_t twiddles_size = sizeof(CPX_TYPE_SIZE) * nfft * 2;
+  size_t buffer_size = batch * in_c_dtype * nfft;
 
-  // mlu_addrs
-  // fft_plan->mlu_addrs.input = workspace;
-  // fft_plan->mlu_addrs.output = fft_plan->mlu_addrs.input + buffer_size;
-  // fft_plan->mlu_addrs.buffer = fft_plan->mlu_addrs.output + buffer_size;
+  size_t offset = 0;
+  fft_plan->mlu_addrs.buffer_buf = (uint8_t *)workspace + offset;
+  offset += buffer_size;
 
-  fft_plan->mlu_addrs.input = input;
-  fft_plan->mlu_addrs.output = output;
-  // fft_plan->mlu_addrs.buffer_in = (uint8_t *)workspace;
-  // fft_plan->mlu_addrs.buffer_out = (uint8_t *)workspace + buffer_size;
-  // fft_plan->mlu_addrs.buffer_buf = (uint8_t *)workspace + 2 * buffer_size;
+  if (fft_plan->is_input_contiguous || fft_plan->is_batch_contiguous) {
+    fft_plan->mlu_addrs.input = input;
+  } else {
+    fft_plan->mlu_addrs.input = (uint8_t *)workspace + offset;
+    offset += batch * in_c_dtype * nfft;
+  }
 
-  fft_plan->mlu_addrs.buffer_buf = (uint8_t *)workspace;
-
-  // fft_plan->mlu_addrs.twiddles = mlu_runtime_.allocate(reservespace_size);
+  if (fft_plan->is_output_contiguous || fft_plan->is_batch_contiguous) {
+    fft_plan->mlu_addrs.output = output;
+  } else {
+    fft_plan->mlu_addrs.output = (uint8_t *)workspace + offset;
+    offset += batch * out_c_dtype * nfft;
+  }
 }
 
 // zrg
@@ -1198,7 +1191,8 @@ static void configureFFT1dWorkspaceAddrs(mluOpHandle_t handle,
 // output   : in input_contiguous_addr
 static mluOpStatus_t makeFFT1dContiguousInput(mluOpHandle_t handle,
                                               mluOpFFTPlan_t fft_plan,
-                                              const void *input) {
+                                              const void *input,
+                                              void *input_contiguous) {
   std::string api = "[mluOpExecFFT]";
   VLOG(5) << "into makeFFT1dContiguousInput";
   auto status = MLUOP_STATUS_SUCCESS;
@@ -1216,8 +1210,7 @@ static mluOpStatus_t makeFFT1dContiguousInput(mluOpHandle_t handle,
                                            dims, strides);
     INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
 
-    status = mluOpContiguous(handle, input_desc, input,
-                             fft_plan->matmul_addrs.input_contiguous_addr);
+    status = mluOpContiguous(handle, input_desc, input, input_contiguous);
     INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
 
     status = mluOpDestroyTensorDescriptor(input_desc);
@@ -1697,7 +1690,8 @@ static mluOpStatus_t transposeFFT1dOutput(mluOpHandle_t handle,
 
 static mluOpStatus_t makeFFT1dContiguousOutput(mluOpHandle_t handle,
                                                mluOpFFTPlan_t fft_plan,
-                                               void *output) {
+                                               void *output,
+                                               void *output_contiguous) {
   std::string api = "[mluOpExecFFT]";
   VLOG(5) << "into makeFFT1dContiguousOutput";
   mluOpStatus_t status = MLUOP_STATUS_SUCCESS;
@@ -1723,7 +1717,8 @@ static mluOpStatus_t makeFFT1dContiguousOutput(mluOpHandle_t handle,
                                       out_c_dtype, out_dim_num, dims, strides);
     INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
 
-    void *copy_src_addr = fft_plan->matmul_addrs.output_contiguous_addr;
+    // void *copy_src_addr = fft_plan->matmul_addrs.output_contiguous_addr;
+    void *copy_src_addr = output_contiguous;
     DEFINE_CREATE_AND_SET_CNNL_HANDLE(handle,
                                       cnnl_handle);  // convert to cnnl_handle
     // convert to cnnl_tensor_descriptor
@@ -1742,83 +1737,17 @@ static mluOpStatus_t makeFFT1dContiguousOutput(mluOpHandle_t handle,
   return status;
 }
 
-// only for CNFFT_FUNC_COOLEY_TUKEY and CNFFT_FUNC_STOCKHAM
-// input    : matmul real result in matmul_re_mul_re_addr
-//            matmul imag result in matmul_re_mul_im_addr
-// workspace: internal_workspace_addr
-// output   : output real result in output_contiguous_addr
 mluOpStatus_t execFFTc2c1d(mluOpHandle_t handle, mluOpFFTPlan_t fft_plan,
                            const float scale_factor, int direction) {
   std::string api = "[execFFTc2c1d]";
 
   VLOG(5) << "launch c2c fft1d";
-  // TODO(niyuming) luanch merge kernel
-  // int core_num = handle->core_num_per_cluster;
   mluOpStatus_t status = MLUOP_STATUS_SUCCESS;
-  // cnrtFunctionType_t k_type = CNRT_FUNC_TYPE_UNION1;
-  // int task_type = mluop::runtime::getJobLimitCapability(handle);
-  // int task_num = 1;
 
-  // switch (task_type) {
-  //   default:
-  //     task_num = core_num;
-  //     break;
-  //   case (int)CNRT_FUNC_TYPE_UNION2:
-  //     task_num = core_num * 2;
-  //     break;
-  //   case (int)CNRT_FUNC_TYPE_UNION4:
-  //     task_num = core_num * 4;
-  //     break;
-  //   case (int)CNRT_FUNC_TYPE_UNION8:
-  //     task_num = core_num * 8;
-  //     break;
-  //   case (int)CNRT_FUNC_TYPE_UNION16:
-  //     task_num = core_num * 16;
-  //     break;
-  // }
-  // int task_num = core_num * 4;
-  // unsigned int dimx = task_num;
-  // cnrtDim3_t k_dim = {dimx, 1, 1};
-  // cnrtFunctionType_t k_type = (cnrtFunctionType_t)dimx;
-  // kernelFFT1dButterflyRow(k_dim, k_type, handle->queue, fft_plan, direction,
-  //                      FFT_IFFT);
-
-  // int core_num = handle->core_num_per_cluster;
-  // cnrtFunctionType_t k_type = CNRT_FUNC_TYPE_UNION1;
-  // int task_type = mluop::runtime::getJobLimitCapability(handle);
-  // int task_num = 1;
-
-  // switch (task_type) {
-  //   default:
-  //     task_num = core_num;
-  //     break;
-  //   case (int)CNRT_FUNC_TYPE_UNION2:
-  //     task_num = core_num * 2;
-  //     break;
-  //   case (int)CNRT_FUNC_TYPE_UNION4:
-  //     task_num = core_num * 4;
-  //     break;
-  //   case (int)CNRT_FUNC_TYPE_UNION8:
-  //     task_num = core_num * 8;
-  //     break;
-  //   case (int)CNRT_FUNC_TYPE_UNION16:
-  //     task_num = core_num * 16;
-  //     break;
-  // }
-
-  // unsigned int dimx = task_num;
-  // cnrtDim3_t k_dim = {dimx, 1, 1};
-  // k_type = (cnrtFunctionType_t)dimx;
-  // // std::cout<<"\n\nkernelFFT1dButterflyRow\n\n"<<std::endl;
-  // // std::cout<<"\n\ntask_num\n\n"<<task_num<<std::endl;
-  // kernelFFT1dButterflyRow(k_dim, k_type, handle->queue, fft_plan, direction,
-  //                    FFT_IFFT);
-
-  // VLOG(5) << "launch mrege rfft1d output";
   cnrtDim3_t k_dim;
   cnrtFunctionType_t k_type;
   policyFunc(handle, &k_dim, &k_type);
-  if (fft_plan->istride == 1) {
+  if (!fft_plan->is_batch_contiguous) {
     kernelFFT1dButterflyRow(k_dim, k_type, handle->queue, fft_plan, direction,
                             FFT_IFFT);
   } else {
@@ -1957,7 +1886,8 @@ mluOpStatus_t execFFT1d(mluOpHandle_t handle, const mluOpFFTPlan_t fft_plan,
     configureFFT1dMatmulWorkspaceAddrs(handle, fft_plan, (void *)input,
                                        workspace, output);
 
-    status = makeFFT1dContiguousInput(handle, fft_plan, input);
+    status = makeFFT1dContiguousInput(
+        handle, fft_plan, input, fft_plan->matmul_addrs.input_contiguous_addr);
     INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
 
     status = padFFT1dContiguousInput(handle, fft_plan);
@@ -1979,16 +1909,27 @@ mluOpStatus_t execFFT1d(mluOpHandle_t handle, const mluOpFFTPlan_t fft_plan,
     status = transposeFFT1dOutput(handle, fft_plan);
     INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
 
-    status = makeFFT1dContiguousOutput(handle, fft_plan, output);
+    status = makeFFT1dContiguousOutput(
+        handle, fft_plan, output,
+        fft_plan->matmul_addrs.output_contiguous_addr);
     INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
   } else {
-    // direction: 0(forward) 1(backward)
-
     configureFFT1dWorkspaceAddrs_v2(handle, fft_plan, (void *)input, workspace,
                                     output);
-    status = execFFTc2c1d(handle, fft_plan, scale_factor, direction);
+    if (!fft_plan->is_input_contiguous && !fft_plan->is_batch_contiguous) {
+      status = makeFFT1dContiguousInput(handle, fft_plan, input,
+                                        fft_plan->mlu_addrs.input);
+      INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
+    }
 
+    status = execFFTc2c1d(handle, fft_plan, scale_factor, direction);
     INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
+
+    if (!fft_plan->is_output_contiguous && !fft_plan->is_batch_contiguous) {
+      status = makeFFT1dContiguousOutput(handle, fft_plan, output,
+                                         fft_plan->mlu_addrs.output);
+      INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
+    }
   }
 
   return status;

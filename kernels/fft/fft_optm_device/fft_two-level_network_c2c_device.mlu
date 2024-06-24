@@ -66,21 +66,21 @@ __mlu_global__ void MLUKernelFFT1dButterflyRow(void *input, void *output,
 __mlu_global__ void MLUKernelFFT1dButterflyColumn(
     void *input, void *output, int *factors, void *twiddles, void *twiddles_end,
     void *dft_matrix, void *buffer, int batch, int fft_flag, int direction,
-    int dtype_size) {
+    int dtype_size, int nb) {
   switch (dtype_size) {
     case (MLUOP_DTYPE_COMPLEX_FLOAT):
     case (MLUOP_DTYPE_FLOAT): {
       computeMutiStageOnchipColumn<float>(
           (float *)input, (float *)output, factors, (float *)twiddles,
           (float *)twiddles_end, (float *)dft_matrix, (float *)buffer, batch,
-          fft_flag, direction);
+          fft_flag, direction, nb);
     }; break;
     case (MLUOP_DTYPE_COMPLEX_HALF):
     case (MLUOP_DTYPE_HALF): {
       computeMutiStageOnchipColumn<half>((half *)input, (half *)output, factors,
                                          (half *)twiddles, (half *)twiddles_end,
                                          (half *)dft_matrix, (half *)buffer,
-                                         batch, fft_flag, direction);
+                                         batch, fft_flag, direction, nb);
     }; break;
 
     default: {
@@ -102,7 +102,7 @@ mluOpStatus_t MLUOP_WIN_API kernelFFT2dButterflyColumn(
         fft_plan->mlu_addrs.twiddles_2d_end, fft_plan->mlu_addrs.dft_matrix_2d,
         fft_plan->mlu_addrs.buffer_buf, fft_plan->n[1], flag,
         direction,  // direction, -1 means invalid(only FFT_IFFT use).
-        fft_plan->output_dtype)));
+        fft_plan->output_dtype, fft_plan->n[1])));
   } else {
     KERNEL_CHECK((MLUKernelFFT1dButterflyColumn<<<k_dim, k_type, queue>>>(
         fft_plan->mlu_addrs.input, fft_plan->mlu_addrs.output,
@@ -111,7 +111,7 @@ mluOpStatus_t MLUOP_WIN_API kernelFFT2dButterflyColumn(
         fft_plan->mlu_addrs.idft_matrix_2d, fft_plan->mlu_addrs.buffer_buf,
         fft_plan->n[1], flag,
         direction,  // direction, -1 means invalid(only FFT_IFFT use).
-        fft_plan->output_dtype)));
+        fft_plan->output_dtype, fft_plan->n[1])));
   }
   return MLUOP_STATUS_SUCCESS;
 }
@@ -129,7 +129,7 @@ mluOpStatus_t MLUOP_WIN_API kernelFFT1dButterflyColumn(
         fft_plan->mlu_addrs.twiddles_end, fft_plan->mlu_addrs.dft_matrix,
         fft_plan->mlu_addrs.buffer_buf, fft_plan->batch, flag,
         direction,  // direction, -1 means invalid(only FFT_IFFT use).
-        fft_plan->output_dtype)));
+        fft_plan->output_dtype, fft_plan->istride)));
   } else {
     KERNEL_CHECK((MLUKernelFFT1dButterflyColumn<<<k_dim, k_type, queue>>>(
         fft_plan->mlu_addrs.input, fft_plan->mlu_addrs.output,
@@ -137,7 +137,7 @@ mluOpStatus_t MLUOP_WIN_API kernelFFT1dButterflyColumn(
         fft_plan->mlu_addrs.twiddles_inv_end, fft_plan->mlu_addrs.idft_matrix,
         fft_plan->mlu_addrs.buffer_buf, fft_plan->batch, flag,
         direction,  // direction, -1 means invalid(only FFT_IFFT use).
-        fft_plan->output_dtype)));
+        fft_plan->output_dtype, fft_plan->istride)));
   }
   return MLUOP_STATUS_SUCCESS;
 }

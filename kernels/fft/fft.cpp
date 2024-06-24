@@ -669,7 +669,8 @@ mluOpStatus_t MLUOP_WIN_API fftFactor(const int _n, int *facbuf,
 }
 
 mluOpStatus_t MLUOP_WIN_API fftTwoStepFactor(mluOpFFTPlan_t fft_plan,
-                                             const int _n, int *facbuf) {
+                                             const int _n, int *facbuf,
+                                             int is_row_major) {
   int n = _n;
   // if ((facbuf == NULL) || (n <= 0))
   // {
@@ -683,10 +684,8 @@ mluOpStatus_t MLUOP_WIN_API fftTwoStepFactor(mluOpFFTPlan_t fft_plan,
   int large_radix = 1;
   int small_factors_offset = 22 * 5;
 
-  int row_major = (fft_plan->istride == 1);
-
   while (n > 1) {
-    if (row_major) {
+    if (is_row_major) {
       switch (_n) {
         case (32 * 17):
           if (n % 32 == 0) {
@@ -1234,44 +1233,23 @@ mluOpAllocateC2C1D(mluOpHandle_t handle, mluOpFFTPlan_t fft_plan,
   size_t workspace_size = 0;
   size_t reservespace_size = 0;
 
-  size_t CPX_TYPE_SIZE = 0;
-
-  switch (fft_plan->fft_type) {
-    case CNFFT_COMPLEX_HALF2COMPLEX_HALF: {
-      CPX_TYPE_SIZE = 2 * 2;
-    } break;
-    case CNFFT_COMPLEX_FLOAT2COMPLEX_FLOAT: {
-      CPX_TYPE_SIZE = 4 * 2;
-    }; break;
-    default: {
-      LOG(ERROR) << make_plan_api << ": invalid c2c 1d fft type.";
-      return MLUOP_STATUS_BAD_PARAM;
-    }
-  }
+  mluOpDataType_t in_c_dtype = fft_plan->input_dtype;
+  size_t in_c_dtype_size = mluOpDataTypeBytes(in_c_dtype);
 
   int batch = fft_plan->batch;
 
-  size_t buffer_size = batch * sizeof(CPX_TYPE_SIZE) * nfft;
+  size_t buffer_size = batch * in_c_dtype_size * nfft;
 
-  workspace_size = buffer_size * 3;
+  workspace_size = buffer_size;
+  workspace_size += (fft_plan->is_input_contiguous) ? 0 : buffer_size;
+  workspace_size += (fft_plan->is_output_contiguous) ? 0 : buffer_size;
 
-  // reservespace_size = batch * sizeof(mluOpFFTPlan_t) + sizeof(int) *
-  // (FFT_MAXFACTORS) /* factors */
-  //                              + sizeof(CPX_TYPE_SIZE) * nfft * 2 /* twiddles
-  //                              */
-  //                             );
-
-  size_t twiddles_size = sizeof(CPX_TYPE_SIZE) * nfft * 2;
+  size_t twiddles_size = in_c_dtype_size * nfft * 2;
   reservespace_size = sizeof(int) * (FFT_MAXFACTORS)            /* factors */
                       + twiddles_size * 2 + DFT_TABLE_SIZE * 2; /* twiddles */
 
   fft_plan->workspace_size = workspace_size;
   fft_plan->reservespace_size = reservespace_size;
-
-  // std::cout << "workspace_size: " << workspace_size << "bytes" << std::endl;
-  // std::cout << "reservespace_size: " << reservespace_size << "bytes" <<
-  // std::endl; CNAME(openfft_generate_twiddles)(st->twiddles, st->factors,
-  // nfft, st->dir);
 
   return MLUOP_STATUS_SUCCESS;
 }
@@ -1410,17 +1388,20 @@ mluOpStatus_t MLUOP_WIN_API mluOpMakeFFTPlanC2C1D(
     const int rank, const int *n) {
   // reservespace_addr_ = mlu_runtime_.allocate(reservespace_size_)
   // st = CNAME(openfft_allocate_c2c_plan_1d)(nfft, fin, fout, dir);
+  fft_plan->is_batch_contiguous =
+      (fft_plan->idist == 1 && fft_plan->odist == 1);
 
   // std::cout<< "mluOpAllocateC2C1D"<<std::endl;
   mluOpAllocateC2C1D(handle, fft_plan, input_desc, output_desc, n[0]);
   // std::cout<< "mluOpAllocateC2C1D"<<std::endl;
-  fftTwoStepFactor(fft_plan, n[0], fft_plan->factors);
+  int is_row_major = !fft_plan->is_batch_contiguous;
+  fftTwoStepFactor(fft_plan, n[0], fft_plan->factors, is_row_major);
 
   switch (fft_plan->fft_type) {
     case CNFFT_FLOAT2COMPLEX_FLOAT:
     case CNFFT_COMPLEX_FLOAT2FLOAT:
     case CNFFT_COMPLEX_FLOAT2COMPLEX_FLOAT:
-      if (fft_plan->istride == 1) {
+      if (!fft_plan->is_batch_contiguous) {
         fftGenerateTwiddles<float>(fft_plan->twiddles, fft_plan->twiddles_end,
                                    fft_plan->factors, n[0], FFT_FORWARD);
         fftGenerateTwiddles<float>(fft_plan->twiddles_inv,
@@ -1444,7 +1425,7 @@ mluOpStatus_t MLUOP_WIN_API mluOpMakeFFTPlanC2C1D(
     case CNFFT_COMPLEX_HALF2HALF:
     case CNFFT_COMPLEX_HALF2COMPLEX_HALF:
 
-      if (fft_plan->istride == 1) {
+      if (!fft_plan->is_batch_contiguous) {
         fftGenerateTwiddles<float>(fft_plan->twiddles, fft_plan->twiddles_end,
                                    fft_plan->factors, n[0], FFT_FORWARD);
         fftGenerateTwiddles<float>(fft_plan->twiddles_inv,
@@ -1531,8 +1512,8 @@ mluOpStatus_t MLUOP_WIN_API mluOpMakeFFTPlanC2C2D(
   }
 
   if (fft_plan->fft_strategy == CNFFT_FUNC_TWO_LEVEL_STOCKHAM) {
-    fftTwoStepFactor(fft_plan, n[1], fft_plan->factors);
-    fftTwoStepFactor(fft_plan, n[0], fft_plan->factors_2d);
+    fftTwoStepFactor(fft_plan, n[1], fft_plan->factors, 1);
+    fftTwoStepFactor(fft_plan, n[0], fft_plan->factors_2d, 0);
 
     switch (fft_plan->fft_type) {
       case CNFFT_FLOAT2COMPLEX_FLOAT:
