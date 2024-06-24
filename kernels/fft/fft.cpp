@@ -815,6 +815,7 @@ mluOpStatus_t MLUOP_WIN_API fftTwoStepFactor(mluOpFFTPlan_t fft_plan,
       }
     } else {
       // column major
+
       for (int cur_r = 64; cur_r > 1; cur_r--) {
         if (n % cur_r == 0) {
           r = cur_r;
@@ -869,7 +870,7 @@ mluOpStatus_t MLUOP_WIN_API searchLargeRadix(mluOpFFTPlan_t fft_plan,
                                              int large_stage_id, int _n) {
   large_radix = 1;
 
-  int cur_stage_num = 0;
+  int cur_stage_num = 0, cur_large_radix = 1;
   int section_num = 0;
   int stage_num = 0, out_stride = 1;
   int n = _n;
@@ -877,23 +878,30 @@ mluOpStatus_t MLUOP_WIN_API searchLargeRadix(mluOpFFTPlan_t fft_plan,
   while (n > 1) {
     for (small_radix = 64; small_radix > 1; small_radix--) {
       if (n % small_radix == 0) {
-        section_num = n / small_radix;
         cur_stage_num = stage_num + 1;
 
         facbuf[4 * cur_stage_num + 0] = small_radix;
-        facbuf[4 * cur_stage_num + 1] = section_num;
-        facbuf[4 * cur_stage_num + 2] = out_stride;
+        facbuf[4 * cur_stage_num + 1] = large_radix;
+        facbuf[4 * cur_stage_num + 2] = out_stride * small_radix;
 
         facbuf[0] = cur_stage_num;
-        facbuf[1] = large_radix;
+        facbuf[1] = large_radix * small_radix;
         int parallel_num_lb = 0;
+        printf("cur_stage_num: %d, out_stride: %d\n", cur_stage_num,
+               out_stride);
         calParallelNumLowBound(fft_plan, facbuf, large_stage_id,
                                parallel_num_lb);
         if (parallel_num_lb > 0) {
+          printf("calParallelNumLowBound\n");
           out_stride *= small_radix;
           large_radix *= small_radix;
+          section_num = n / small_radix;
           stage_num++;
           n /= small_radix;
+          break;
+        } else {
+          facbuf[0] = stage_num;
+          facbuf[1] = large_radix;
         }
       }
     }
@@ -1070,7 +1078,7 @@ mluOpStatus_t MLUOP_WIN_API setMaxParallelNum(mluOpFFTPlan_t fft_plan,
   int align_N = 0;
 
   mluOpStatus_t status;
-
+  // space(large_radix) * para_num > space(para_num * large_radix)
   switch (fft_plan->fft_type) {
     // r2c
     case CNFFT_HALF2COMPLEX_HALF:
