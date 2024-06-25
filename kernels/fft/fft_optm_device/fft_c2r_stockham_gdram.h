@@ -160,11 +160,18 @@ __mlu_func__ void computeMutiStageOnchipC2R(DT *input, DT *output, int *factors,
         // DT *odd_extra_buffer_batch = odd_extra_buffer + t * (nfft * 2);
 
         // first stage
-        printf("we arrived LargeButterflyFirststageC2R\n");
+        for(int i = 0; i < 50; i++)
+        {
+          printf("input_batch[%d]:%f\n", i, input_batch[i]);
+        }
         computeLargeButterflyFirststageC2R<DT>(
             output_batch, input_batch, in_stride, section_num, twiddles,
             sram_dftmtx, (void *)nram_buf, small_factors, direction, nfft,
             last_stage);
+        for(int i = 0; i < 50; i++)
+        {
+          printf("output_batch[%d]:%f\n", i, output_batch[i]);
+        }
       }
     }
     // __sync();

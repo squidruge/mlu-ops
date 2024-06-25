@@ -24,6 +24,7 @@
 #include "kernels/fft/fft_optm_device/irfft_generic_butterfly.h"
 #include "kernels/fft/fft_optm_device/fft_vector_butterfly.h"
 
+
 template <typename DT>
 __mlu_func__ void computeLargeButterflyFirststageC2R(
     DT *output, DT *input, int large_in_stride, int section_num,
@@ -203,13 +204,11 @@ __mlu_func__ void computeLargeButterflyFirststageC2R(
           }
         }
 
-        int in_length_section = 0;
-        // in_length_section is not found
         MLULOG("computeFirststageMatC2R: %d.\n", radix);
-        computeGenericButterflyFirststageC2RMat(
+        computeGenericButterflyFirststageMatC2R(
             nram_out_r, nram_out_i, nram_in_r, nram_in_i, nram_scratch,
             nram_dftmtx, small_section_num * para_ldst_num,
-            small_section_num * para_ldst_num, 1, radix, in_length_section);
+            small_section_num * para_ldst_num, 1, radix);
 
         small_stage_count--;
         if (small_stage_count == 0) {
@@ -277,15 +276,15 @@ __mlu_func__ void computeLargeButterflyFirststageC2R(
               }
             }
           }
-          int in_section_length = 0;
+
               // computeGenericButterflyOtherstages(Fout, buffer, twiddles,
               // radix, section_num, butterfly_num, in_stride, 0, dir);
               // in_section_length is not found
-              MLULOG("computeGenericButterflyOtherstagesC2RMat: %d.\n", radix);
-              computeGenericButterflyOtherstagesC2RMat(
+              MLULOG("computeGenericButterflyOtherstagesMatC2R: %d.\n", radix);
+              computeGenericButterflyOtherstagesMatC2R(
                   nram_out_r, nram_out_i, nram_in_r, nram_in_i, nram_scratch,
                   nram_dftmtx, nram_tw, small_section_num, small_butterfly_num,
-                  para_ldst_num, small_in_stride, radix, in_section_length);
+                  para_ldst_num, small_in_stride, radix);
 
           nram_tw += small_butterfly_num * (radix - 1) * 2;
         }  // for (stage_count)
@@ -315,14 +314,13 @@ __mlu_func__ void computeLargeButterflyFirststageC2R(
               }
             }
           }
-          int in_section_length = 0;
           // in_section_length is not found
-            MLULOG("computeGenericButterflyLaststageC2RMat: %d.\n", radix);
-            computeGenericButterflyLaststageC2RMat(
+            MLULOG("computeGenericButterflyLaststageMatC2R: %d.\n", radix);
+            computeGenericButterflyLaststageMatC2R(
                 nram_out_r, nram_out_i, nram_in_r, nram_in_i, nram_scratch,
                 nram_dftmtx, nram_tw, small_section_num, small_butterfly_num,
-                para_ldst_num, small_in_stride, radix, in_section_length);
-            MLULOG("computeGenericButterflyLaststageC2RMat: %d End.\n", radix);
+                para_ldst_num, small_in_stride, radix);
+            MLULOG("computeGenericButterflyLaststageMatC2R: %d End.\n", radix);
           
           if (last_stage) {
             __bang_transpose(nram_para_store, nram_out_r, 2,

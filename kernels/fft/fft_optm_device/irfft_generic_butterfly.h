@@ -22,6 +22,131 @@
  *************************************************************************/
 #pragma once
 
+#include "kernels/fft/fft_optm_device/fft_butterfly_ops.h"
+
+extern __wram__ char wram_buffer[MAX_WRAM_SIZE];
+
+template <typename DT>
+__mlu_func__ void reverse(DT *dst, const DT *src, int length) {
+    DT *_dst = dst;
+    DT *_src =(DT *)src + length;
+    for(int i = 0; i < length; i++) {
+        _dst[0] = _src[0];
+        _dst++;
+        _src--;
+    }
+}
+
+template <typename DT>
+__mlu_func__ void concatHarizontal(
+  DT *dst, DT *src1, DT *src2, int target_width, int target_height,
+  int width1, int width2, int height) {
+    __bang_pad(dst, src1, 1, height, width1,
+               0, target_height - height, 0, target_width - width1);
+    dst += width1;
+    __memcpy(dst, src2, width2, NRAM2NRAM, target_width, width2, height - 1);
+}
+
+
+// include completing, transposing and padding
+template <typename DT>
+__mlu_func__ void completeInputMatrix(
+  DT *output_r, DT *output_i, DT *input_r, DT *input_i,
+  DT *trans_r, DT *trans_i, DT *mirrored_r, DT *mirrored_i,
+  int length, int length_logical, int radix, int align_K, int align_N) {
+    int butterfly_num = length_logical / radix;
+    int butterfly_num_half = (butterfly_num >> 1) + 1;
+    // int length_completed = butterfly_num_half * radix;
+    int turn_part_A = length % butterfly_num; // 转折部分里，前一半不需要翻转的部分。
+    int turn_part_B = butterfly_num_half - turn_part_A; // 转折部分里，后一半需要翻转的部分。
+    int unturned_times = length / butterfly_num; // 无需翻转的部分搬运次数
+    int turning_time = turn_part_A > 0 ? 1 : 0; // 中间部分
+    int turned_times = radix - unturned_times - turning_time; //需要翻转的部分搬运次数
+
+    DT *reversePoint = NULL;
+    DT *in_r = input_r;
+    DT *in_i = input_i;
+    DT *out_r = output_r;
+    DT *out_i = output_i;
+
+    DT *trans_unturned_r = trans_r;
+    DT *trans_turned_r =
+      trans_unturned_r + (unturned_times + turning_time) * butterfly_num_half;
+
+    DT *trans_unturned_i = trans_i;
+    DT *trans_turned_i =
+      trans_unturned_i + (unturned_times + turning_time) * butterfly_num_half;
+
+    // overlap
+    DT *compute_buffer = trans_r;
+
+    for (int i = 0; i < unturned_times; i++) {
+      __memcpy(out_r, in_r, butterfly_num_half * sizeof(DT), NRAM2NRAM);
+      __memcpy(out_i, in_i, butterfly_num_half * sizeof(DT), NRAM2NRAM);
+      in_r += butterfly_num;
+      in_i += butterfly_num;
+      out_r += butterfly_num_half;
+      out_i += butterfly_num_half;
+    }
+    reversePoint = out_i;
+    if (turning_time) {
+      __memcpy(out_r, in_r, turn_part_A * sizeof(DT), NRAM2NRAM);
+      __memcpy(out_i, in_i, turn_part_A * sizeof(DT), NRAM2NRAM);
+      in_r -= turn_part_B;
+      in_i -= turn_part_B;
+      out_r += turn_part_A;
+      out_i += turn_part_A;
+      reversePoint = out_i;
+      __memcpy(compute_buffer, in_r,
+               turn_part_B * sizeof(DT), NRAM2NRAM);
+      __memcpy(compute_buffer + turn_part_B, in_i,
+               turn_part_B * sizeof(DT), NRAM2NRAM);
+      reverse(out_r, compute_buffer, turn_part_B);
+      reverse(out_i, compute_buffer, turn_part_B);
+      out_r += turn_part_B;
+      out_i += turn_part_B;
+    } else {
+      in_r -= (butterfly_num - butterfly_num_half);
+      in_i -= (butterfly_num - butterfly_num_half);
+    }
+    in_r -= butterfly_num;
+    in_i -= butterfly_num;
+    for (int i = 0; i < turned_times; i++) {
+      __memcpy(out_r, in_r, butterfly_num_half * sizeof(DT), NRAM2NRAM);
+      __memcpy(out_i, in_i, butterfly_num_half * sizeof(DT), NRAM2NRAM);
+      in_r -= butterfly_num;
+      in_i -= butterfly_num;
+      out_r += butterfly_num_half;
+      out_i += butterfly_num_half;
+    }
+
+    // neg
+    __bang_mul_scalar(reversePoint, reversePoint, -1, output_i - reversePoint);
+
+    // vector reverse
+    __bang_transpose(trans_unturned_r, output_r,
+      unturned_times + turning_time, butterfly_num_half);
+    __bang_transpose(trans_unturned_i, output_i,
+      unturned_times + turning_time, butterfly_num_half);
+    __bang_transpose(trans_turned_r, 
+      output_r + (unturned_times + turning_time) * butterfly_num_half,
+      turned_times, butterfly_num_half);
+    __bang_transpose(trans_turned_i, 
+      output_i + (unturned_times + turning_time) * butterfly_num_half,
+      turned_times, butterfly_num_half);
+    
+    __bang_mirror(mirrored_r, trans_turned_r, butterfly_num_half, turned_times);
+    __bang_mirror(mirrored_i, trans_turned_i, butterfly_num_half, turned_times);
+
+    concatHarizontal(output_r, trans_unturned_r, mirrored_r,
+                     align_K, align_N, unturned_times + turning_time,
+                     turned_times, butterfly_num_half);
+    concatHarizontal(output_i, trans_unturned_i, mirrored_i,
+                     align_K, align_N, unturned_times + turning_time,
+                     turned_times, butterfly_num_half);
+}
+
+
 template <typename DT>
 __mlu_func__ void computeGenericButterflyFirststageMatC2R(
     DT *nram_out_r, DT *nram_out_i, DT *nram_in_r, DT *nram_in_i,
@@ -220,10 +345,12 @@ __mlu_func__ void  computeGenericButterflyOtherstagesMatC2R(
   __bang_transpose(in_trans.i, Fin.i, radix, para_num);
   __bang_transpose(in_trans.r, Fin.r, radix, para_num);
 
+  int logical_length = butterfly_num * radix;
+
   // complete the input matrix, in_mirrored is not found
   completeInputMatrix(in_align.r, in_align.i, nram_in_r, nram_in_i,
                       in_trans.r, in_trans.i, in_mirrored.r, in_mirrored.i,
-                      in_length_section, (in_length_section - 1) * 2, 
+                      logical_length / 2 + 1, logical_length, 
                       radix, align_K, align_N);
 
   __bang_reshape_filter(in_align2.r, in_align.r, align_N, 1, 1, align_K);
@@ -269,9 +396,9 @@ __mlu_func__ void  computeGenericButterflyLaststageMatC2R(
     DT *nram_out_r, DT *nram_out_i, DT *nram_in_r, DT *nram_in_i,
     DT *nram_scratch, DT *nram_dftmtx, DT *nram_tw, int section_num,
     int butterfly_num, int para_large_butterfly, int in_stride,
-    int radix, int in_length_section) {
+    int radix) {
   computeGenericButterflyOtherstagesMatC2R(
       nram_out_r, nram_out_i, nram_in_r, nram_in_i, nram_scratch, nram_dftmtx,
       nram_tw, section_num, butterfly_num, para_large_butterfly, in_stride,
-      radix, in_length_section);
+      radix);
 }
