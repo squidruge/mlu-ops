@@ -22,7 +22,6 @@
  *************************************************************************/
 #pragma once
 
-
 template <typename DT>
 __mlu_func__ void computeGenericButterflyFirststageMatC2R(
     DT *nram_out_r, DT *nram_out_i, DT *nram_in_r, DT *nram_in_i,
