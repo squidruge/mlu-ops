@@ -89,14 +89,16 @@ __mlu_func__ void computeMutiStageOnchipC2R(DT *input, DT *output, int *factors,
   // if (__is_mpu())
   if (clusterId == 0)
   {
-    // these copy do not work, maybe adrs are invalid.
     __memcpy_async(sram_factors, factors, FFT_MAXFACTORS * sizeof(int),
                    GDRAM2SRAM);
-    
-    __sync_cluster();
-    printf("we sync successfully \n");
-    __memcpy_async(sram_twiddles, twiddles, twiddles_size * sizeof(DT),
-                   GDRAM2SRAM);
+
+    // [Error] this copy does not work, because the length beyond the memory bound
+    __memcpy_async(sram_twiddles, twiddles, 1 * sizeof(DT),
+                GDRAM2SRAM);
+    // __memcpy_async(sram_twiddles, twiddles, twiddles_size * sizeof(DT),
+    //                GDRAM2SRAM);
+
+    printf("we sync successfully at checkpoint 2\n");
 
     const dft_table_entry *dft_table_gdram =
         (const dft_table_entry *)dft_matrix;
@@ -115,20 +117,6 @@ __mlu_func__ void computeMutiStageOnchipC2R(DT *input, DT *output, int *factors,
       __memcpy(sram_dftmtx, dft_matrix, sizeof(DT) * 2 * dft_matrix_offset,
                GDRAM2SRAM);
       const dft_table_entry *dft_table = (const dft_table_entry *)sram_dftmtx;
-
-      // mem check on SRAM
-      if(taskId == 0) {
-        for(int i = 0; i < 10; i++) {
-          printf("dft_table[%d].radix:%d, offset:%d\n",
-                  i, dft_table[i].radix, dft_table[i].offset);
-        }
-        for(int i = 0; i < 10; i++) {
-          printf("sram_dftmtx[%d]:%d\n",
-                  i, ((int *)sram_dftmtx)[i]);
-        }
-      }
-
-
       // copy the DFT matrix
       for (int entry = 0;; entry++) {
         if (dft_table[entry + 1].radix == -1) {
@@ -146,7 +134,7 @@ __mlu_func__ void computeMutiStageOnchipC2R(DT *input, DT *output, int *factors,
   }
 
   __sync_cluster();
-  printf("taskId:%d has finished the sync\n",taskId);
+  printf("we passed this sync\n");
   if (__is_ipu()) {
     __memcpy(nram_factors, sram_factors, FFT_MAXFACTORS * sizeof(int),
              SRAM2NRAM);
