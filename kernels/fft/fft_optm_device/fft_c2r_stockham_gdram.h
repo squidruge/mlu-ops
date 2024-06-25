@@ -174,6 +174,7 @@ __mlu_func__ void computeMutiStageOnchipC2R(DT *input, DT *output, int *factors,
         }
       }
     }
+    
     // __sync();
   } else {
     stage_count = _stage_count;
