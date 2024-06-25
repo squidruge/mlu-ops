@@ -887,12 +887,10 @@ mluOpStatus_t MLUOP_WIN_API searchLargeRadix(mluOpFFTPlan_t fft_plan,
         facbuf[0] = cur_stage_num;
         facbuf[1] = large_radix * small_radix;
         int parallel_num_lb = 0;
-        printf("cur_stage_num: %d, out_stride: %d\n", cur_stage_num,
-               out_stride);
+
         calParallelNumLowBound(fft_plan, facbuf, large_stage_id,
                                parallel_num_lb);
         if (parallel_num_lb > 0) {
-          printf("calParallelNumLowBound\n");
           out_stride *= small_radix;
           large_radix *= small_radix;
           section_num = n / small_radix;
@@ -1248,9 +1246,15 @@ mluOpAllocateC2C1D(mluOpHandle_t handle, mluOpFFTPlan_t fft_plan,
 
   size_t buffer_size = batch * in_c_dtype_size * nfft;
 
-  workspace_size = buffer_size;
-  workspace_size += (fft_plan->is_input_contiguous) ? 0 : buffer_size;
-  workspace_size += (fft_plan->is_output_contiguous) ? 0 : buffer_size;
+  workspace_size = buffer_size * 2;
+  workspace_size +=
+      (fft_plan->is_input_contiguous || fft_plan->is_batch_contiguous)
+          ? 0
+          : buffer_size;
+  workspace_size +=
+      (fft_plan->is_output_contiguous || fft_plan->is_batch_contiguous)
+          ? 0
+          : buffer_size;
 
   size_t twiddles_size = in_c_dtype_size * nfft * 2;
   reservespace_size = sizeof(int) * (FFT_MAXFACTORS)            /* factors */
@@ -1264,50 +1268,41 @@ mluOpAllocateC2C1D(mluOpHandle_t handle, mluOpFFTPlan_t fft_plan,
 
 mluOpStatus_t MLUOP_WIN_API mluOpAllocateC2C2D(
     mluOpHandle_t handle, mluOpFFTPlan_t fft_plan,
-    mluOpTensorDescriptor_t input_desc, mluOpTensorDescriptor_t output_desc,
-    const int _n0, const int _n1) {
+    mluOpTensorDescriptor_t input_desc, mluOpTensorDescriptor_t output_desc) {
   const std::string make_plan_api = "[mluOpAllocateC2C2D]";
   size_t workspace_size = 0;
   size_t reservespace_size = 0;
 
-  size_t CPX_TYPE_SIZE = 0;
-
-  switch (fft_plan->fft_type) {
-    case CNFFT_COMPLEX_HALF2COMPLEX_HALF: {
-      CPX_TYPE_SIZE = 2 * 2;
-    } break;
-    case CNFFT_COMPLEX_FLOAT2COMPLEX_FLOAT: {
-      CPX_TYPE_SIZE = 4 * 2;
-    }; break;
-    default: {
-      LOG(ERROR) << make_plan_api << ": invalid c2c 2d fft type.";
-      return MLUOP_STATUS_BAD_PARAM;
-    }
-  }
+  mluOpDataType_t in_c_dtype = fft_plan->input_dtype;
+  size_t in_c_dtype_size = mluOpDataTypeBytes(in_c_dtype);
 
   int batch = fft_plan->batch;
-  size_t buffer_size = batch * sizeof(CPX_TYPE_SIZE) * _n0 * _n1;
+  const int _n0 = fft_plan->n[0];
+  const int _n1 = fft_plan->n[1];
 
-  size_t twiddles_size = CPX_TYPE_SIZE * _n0;
-  size_t twiddles_size_2d = CPX_TYPE_SIZE * _n1;
+  size_t buffer_size = batch * in_c_dtype_size * _n0 * _n1;
+
+  size_t twiddles_size = in_c_dtype_size * _n0;
+  size_t twiddles_size_2d = in_c_dtype_size * _n1;
 
   if (fft_plan->fft_strategy == CNFFT_FUNC_MANY_DIST1_2D) {
     reservespace_size =
-        (CPX_TYPE_SIZE * _n0 * _n0 + CPX_TYPE_SIZE * _n1 * _n1) *
+        (in_c_dtype_size * _n0 * _n0 + in_c_dtype_size * _n1 * _n1) *
         2; /* DFT matrix */
-    workspace_size = CPX_TYPE_SIZE * _n1 * _n0 * batch * 6;
+    workspace_size = buffer_size * 6;
   } else if (fft_plan->fft_strategy == CNFFT_FUNC_TWO_LEVEL_STOCKHAM) {
     reservespace_size = sizeof(int) * (FFT_MAXFACTORS) /* factors */
                         + sizeof(int) * (FFT_MAXFACTORS) + twiddles_size * 2 +
                         DFT_TABLE_SIZE * 2 + twiddles_size_2d * 2 +
                         DFT_TABLE_SIZE * 2; /* twiddles */
-    workspace_size = buffer_size * 3;
+    workspace_size = buffer_size * 2;
+    workspace_size += (fft_plan->is_input_contiguous) ? 0 : buffer_size;
+    workspace_size += (fft_plan->is_output_contiguous) ? 0 : buffer_size;
   }
 
   fft_plan->workspace_size = workspace_size;
   fft_plan->reservespace_size = reservespace_size;
 
-  // printf("%ld, %ld\n\n", workspace_size, reservespace_size);
   return MLUOP_STATUS_SUCCESS;
 }
 
@@ -1473,21 +1468,20 @@ mluOpStatus_t MLUOP_WIN_API mluOpMakeFFTPlanC2C2D(
     mluOpHandle_t handle, mluOpFFTPlan_t fft_plan,
     mluOpTensorDescriptor_t input_desc, mluOpTensorDescriptor_t output_desc,
     const int rank, const int *n) {
-  if (fft_plan->idist == 1 && fft_plan->odist == 1 &&
-      fft_plan->istride == fft_plan->batch &&
+  fft_plan->is_batch_contiguous =
+      (fft_plan->idist == 1 && fft_plan->odist == 1);
+
+  if (fft_plan->is_batch_contiguous && fft_plan->istride == fft_plan->batch &&
       fft_plan->inembed[0] == fft_plan->n[0] &&
       fft_plan->onembed[0] == fft_plan->n[0] &&
       fft_plan->inembed[1] == fft_plan->n[1] &&
       fft_plan->onembed[1] == fft_plan->n[1]) {
     fft_plan->fft_strategy = CNFFT_FUNC_MANY_DIST1_2D;
-  } else if (fft_plan->idist == fft_plan->n[1] * fft_plan->n[0] &&
-             fft_plan->odist == fft_plan->idist && fft_plan->istride == 1 &&
-             fft_plan->inembed[1] == fft_plan->n[1] &&
-             fft_plan->onembed[1] == fft_plan->n[1]) {
+  } else {
     fft_plan->fft_strategy = CNFFT_FUNC_TWO_LEVEL_STOCKHAM;
   }
 
-  mluOpAllocateC2C2D(handle, fft_plan, input_desc, output_desc, n[0], n[1]);
+  mluOpAllocateC2C2D(handle, fft_plan, input_desc, output_desc);
 
   if (fft_plan->fft_strategy == CNFFT_FUNC_MANY_DIST1_2D) {
     switch (fft_plan->fft_type) {
