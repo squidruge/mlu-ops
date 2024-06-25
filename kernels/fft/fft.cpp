@@ -1417,6 +1417,7 @@ mluOpStatus_t MLUOP_WIN_API mluOpMakeFFTPlanMany(
         status = makeRFFT1dPolicy(handle, fft_plan);
       }
     }; break;
+    // r2c to be solved--------------------
     case CNFFT_COMPLEX_HALF2HALF:
     case CNFFT_COMPLEX_FLOAT2FLOAT: {
       if (rank == 1) {
@@ -1533,7 +1534,7 @@ mluOpStatus_t MLUOP_WIN_API mluOpSetFFTReserveArea(mluOpHandle_t handle,
 mluOpStatus_t MLUOP_WIN_API mluOpExecFFT(
     mluOpHandle_t handle, const mluOpFFTPlan_t fft_plan, const void *input,
     const float scale_factor, void *workspace, void *output, int direction) {
-  
+
   const std::string exec_api = "[mluOpExecFFT]";
   PARAM_CHECK_NE(exec_api, handle, NULL);
   PARAM_CHECK_NE(exec_api, fft_plan, NULL);
@@ -1629,7 +1630,7 @@ mluOpStatus_t MLUOP_WIN_API mluOpExecFFT(
     // c2r
     case CNFFT_COMPLEX_HALF2HALF:
     case CNFFT_COMPLEX_FLOAT2FLOAT: {
-    
+      
       if (((fft_plan->idist * 2) < fft_plan->odist) && is_in_place) {
         LOG(ERROR)
             << exec_api
@@ -1640,6 +1641,8 @@ mluOpStatus_t MLUOP_WIN_API mluOpExecFFT(
         status = MLUOP_STATUS_BAD_PARAM;
       }
       if (fft_plan->rank == 1) {
+        
+        printf("input=%f\n", ((float *)input)[0]);
         status = execIRFFT1d(handle, fft_plan, input, scale_factor, workspace,
                              output);
       } else if (fft_plan->rank == 2) {

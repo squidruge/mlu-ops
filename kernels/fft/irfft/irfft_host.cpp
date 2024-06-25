@@ -1317,6 +1317,54 @@ static mluOpStatus_t makeIRFFT1dContiguousOutput(mluOpHandle_t handle,
 
 /* -------------------------------------------------------------------------- */
 
+static void configureIRFFT1dWorkspaceAddrs(mluOpHandle_t handle,
+                                           mluOpFFTPlan_t fft_plan,
+                                           void *input, void *workspace,
+                                           void *output) {
+  VLOG(5) << "Into configure IRFFT1d Workspace Addrs (zrg)";
+  const std::string make_plan_api = "[configureIRFFT1dWorkspaceAddrs]";
+  size_t workspace_size = 0;
+  size_t reservespace_size = 0;
+
+  size_t CPX_TYPE_SIZE = 0;
+
+  switch (fft_plan->fft_type) {
+    case CNFFT_COMPLEX_HALF2HALF: {
+      CPX_TYPE_SIZE = 2 * 2;
+    } break;
+    case CNFFT_COMPLEX_FLOAT2FLOAT: {
+      CPX_TYPE_SIZE = 4 * 2;
+    }; break;
+    default: {
+      LOG(ERROR) << make_plan_api << ": invalid c2r 1d fft type.";
+      return;
+      // return MLUOP_STATUS_BAD_PARAM;
+    }
+  }
+
+  int batch = fft_plan->batch;
+  int nfft = fft_plan->n[0];
+
+  size_t buffer_size = batch * sizeof(CPX_TYPE_SIZE) * nfft;
+  size_t twiddles_size = sizeof(CPX_TYPE_SIZE) * nfft * 2;
+
+  // mlu_addrs
+  // fft_plan->mlu_addrs.input = workspace;
+  // fft_plan->mlu_addrs.output = fft_plan->mlu_addrs.input + buffer_size;
+  // fft_plan->mlu_addrs.buffer = fft_plan->mlu_addrs.output + buffer_size;
+
+  fft_plan->mlu_addrs.input = input;
+  fft_plan->mlu_addrs.output = output;
+  // fft_plan->mlu_addrs.buffer_in = (uint8_t *)workspace;
+  // fft_plan->mlu_addrs.buffer_out = (uint8_t *)workspace + buffer_size;
+  // fft_plan->mlu_addrs.buffer_buf = (uint8_t *)workspace + 2 * buffer_size;
+
+  fft_plan->mlu_addrs.buffer_buf = (uint8_t *)workspace;
+
+  // fft_plan->mlu_addrs.twiddles = mlu_runtime_.allocate(reservespace_size);
+}
+
+
 mluOpStatus_t execFFTc2r1d(mluOpHandle_t handle, mluOpFFTPlan_t fft_plan,
                            const float scale_factor, int direction) {
   std::string api = "[execFFTc2r1d]";
@@ -1369,8 +1417,9 @@ mluOpStatus_t execIRFFT1d(mluOpHandle_t handle, const mluOpFFTPlan_t fft_plan,
   INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
 
 #endif
-  configureIRFFT1dMatmulWorkspaceAddrs(handle, fft_plan, (void *)input,
-                                       workspace, output);
+
+  configureIRFFT1dWorkspaceAddrs(handle, fft_plan, (void *)input,
+                                 workspace, output);
   status = execFFTc2r1d(handle, fft_plan, scale_factor, 1);
   return status;
 }

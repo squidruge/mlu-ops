@@ -92,9 +92,11 @@ __mlu_func__ void computeMutiStageOnchipC2R(DT *input, DT *output, int *factors,
                    GDRAM2SRAM);
     __memcpy_async(sram_twiddles, twiddles, twiddles_size * sizeof(DT),
                    GDRAM2SRAM);
+
     // _small_stage_count = small_factors[0];
     const dft_table_entry *dft_table_gdram =
         (const dft_table_entry *)dft_matrix;
+    
     int dft_matrix_offset = dft_table_gdram[0].offset;
 
     if (dft_matrix_offset != -1) {
