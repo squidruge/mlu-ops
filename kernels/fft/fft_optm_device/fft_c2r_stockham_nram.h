@@ -37,10 +37,13 @@ __mlu_func__ void computeLargeButterflyFirststageC2R(
   int small_section_num, small_butterfly_num, value_mul;
   int tw_offset;
   // int max_radix = small_factors[4];
+
+  printf("[debug]checkpoint1 \n");
   _small_stage_count = small_factors[0];
   large_radix = small_factors[1];
   tw_offset = small_factors[2];
 
+  printf("[debug]checkpoint2 \n");
   const int max_para_ldst_num = (4096 + large_radix - 1) / large_radix;
   // const int max_para_ldst_num = 1;
   const DT *small_twiddles = twiddles + tw_offset * 2;  // complex
@@ -85,6 +88,7 @@ __mlu_func__ void computeLargeButterflyFirststageC2R(
 
   DT *nram_scratch = (DT *)nram_buf + nram_buf_offset;
 
+  printf("[debug]checkpoint3 \n");
   MLULOG("nram used: %d bytes.\n",
          (int)((size_t)nram_scratch - (size_t)nram_buffer));
   
@@ -203,7 +207,7 @@ __mlu_func__ void computeLargeButterflyFirststageC2R(
             }
           }
         }
-
+        printf("[debug]checkpoint4 \n");
         MLULOG("computeFirststageMatC2R: %d.\n", radix);
         computeGenericButterflyFirststageMatC2R(
             nram_out_r, nram_out_i, nram_in_r, nram_in_i, nram_scratch,
