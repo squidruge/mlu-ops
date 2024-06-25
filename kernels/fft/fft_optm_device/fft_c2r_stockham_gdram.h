@@ -86,14 +86,14 @@ __mlu_func__ void computeMutiStageOnchipC2R(DT *input, DT *output, int *factors,
   last_stage = (stage_count == 1);
 
 
-  if (__is_mpu())
+  // if (__is_mpu())
+  if (taskId == 0)
   {
     __memcpy_async(sram_factors, factors, FFT_MAXFACTORS * sizeof(int),
                    GDRAM2SRAM);
     __memcpy_async(sram_twiddles, twiddles, twiddles_size * sizeof(DT),
                    GDRAM2SRAM);
 
-    // _small_stage_count = small_factors[0];
     const dft_table_entry *dft_table_gdram =
         (const dft_table_entry *)dft_matrix;
     printf("corrupt here??\n");

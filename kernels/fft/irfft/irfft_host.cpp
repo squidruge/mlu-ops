@@ -1348,20 +1348,11 @@ static void configureIRFFT1dWorkspaceAddrs(mluOpHandle_t handle,
   size_t buffer_size = batch * sizeof(CPX_TYPE_SIZE) * nfft;
   size_t twiddles_size = sizeof(CPX_TYPE_SIZE) * nfft * 2;
 
-  // mlu_addrs
-  // fft_plan->mlu_addrs.input = workspace;
-  // fft_plan->mlu_addrs.output = fft_plan->mlu_addrs.input + buffer_size;
-  // fft_plan->mlu_addrs.buffer = fft_plan->mlu_addrs.output + buffer_size;
-
   fft_plan->mlu_addrs.input = input;
   fft_plan->mlu_addrs.output = output;
-  // fft_plan->mlu_addrs.buffer_in = (uint8_t *)workspace;
-  // fft_plan->mlu_addrs.buffer_out = (uint8_t *)workspace + buffer_size;
-  // fft_plan->mlu_addrs.buffer_buf = (uint8_t *)workspace + 2 * buffer_size;
 
   fft_plan->mlu_addrs.buffer_buf = (uint8_t *)workspace;
 
-  // fft_plan->mlu_addrs.twiddles = mlu_runtime_.allocate(reservespace_size);
 }
 
 

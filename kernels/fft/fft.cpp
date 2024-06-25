@@ -278,8 +278,10 @@ mluOpStatus_t MLUOP_WIN_API fftGenerateDftMatrix(void *&_dft_matrix,
                                                  int *factors, const int _nfft,
                                                  const int dir) {
   // allocate space for dft_matrix_table and dft_matrix
+  printf("allocate the dtfmtx\n");
   DT *dft_matrix = new DT[DFT_TABLE_SIZE];  // complex *2(large+small)
   dft_table_entry *dft_matrix_table = (dft_table_entry *)dft_matrix;
+  printf("allocate the dtfmtx successfully\n");
   _dft_matrix = dft_matrix;
 
   dft_table_entry *dft_matrix_table_end =
@@ -1032,21 +1034,22 @@ mluOpStatus_t MLUOP_WIN_API mluOpMakeFFTPlanC2R1D(
     mluOpTensorDescriptor_t input_desc, mluOpTensorDescriptor_t output_desc,
     const int rank, const int *n, const int direction) {
   // to be defined
+
   mluOpAllocateC2R1D(handle, fft_plan, input_desc, output_desc, n[0]);
   fftTwoStepFactor(n[0], fft_plan->factors);
 
   switch (fft_plan->fft_type) {
     case CNFFT_COMPLEX_FLOAT2FLOAT:
       fftGenerateTwiddles<float>(fft_plan->twiddles, fft_plan->twiddles_end,
-                                 fft_plan->factors, n[0], FFT_BACKWARD);
+                                 fft_plan->factors, n[0], 1);
       fftGenerateDftMatrix<float>(fft_plan->dft_matrix, fft_plan->factors, n[0],
-                                  FFT_BACKWARD);
+                                  1);
       break;
     case CNFFT_COMPLEX_HALF2HALF:
-      fftGenerateTwiddles<half>(fft_plan->twiddles, fft_plan->twiddles_end,
-                                fft_plan->factors, n[0], FFT_BACKWARD);
-      fftGenerateDftMatrix<half>(fft_plan->dft_matrix, fft_plan->factors, n[0],
-                                 FFT_BACKWARD);
+      fftGenerateTwiddles<float>(fft_plan->twiddles, fft_plan->twiddles_end,
+                                fft_plan->factors, n[0], 1);
+      fftGenerateDftMatrix<float>(fft_plan->dft_matrix, fft_plan->factors, n[0],
+                                 1);
       break;
     default:
       break;
