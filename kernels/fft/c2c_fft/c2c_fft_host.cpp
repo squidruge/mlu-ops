@@ -580,6 +580,7 @@ mluOpStatus_t setIRFFT1dReserveArea_v2(mluOpHandle_t handle,
   size_t factors_size = FFT_MAXFACTORS * sizeof(int);  // bytes
   size_t twiddles_size = sizeof(CPX_TYPE_SIZE) * nfft * 2;
 
+
   size_t reservespace_offset = 0;
   fft_plan->mlu_addrs.twiddles =
       (uint8_t *)fft_plan->reservespace_addr + reservespace_offset;
@@ -587,6 +588,9 @@ mluOpStatus_t setIRFFT1dReserveArea_v2(mluOpHandle_t handle,
   fft_plan->mlu_addrs.twiddles_end =
       (uint8_t *)fft_plan->mlu_addrs.twiddles +
       ((uint8_t *)fft_plan->twiddles_end - (uint8_t *)fft_plan->twiddles);
+  // twiddles_size check
+  printf("!!!!!twiddles_size:%ld\n", (float *)fft_plan->mlu_addrs.twiddles_end -
+         (float *)fft_plan->mlu_addrs.twiddles);
 
   fft_plan->mlu_addrs.dft_matrix =
       (int *)((uint8_t *)fft_plan->reservespace_addr + reservespace_offset);

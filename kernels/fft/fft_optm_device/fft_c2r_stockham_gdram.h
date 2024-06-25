@@ -85,32 +85,21 @@ __mlu_func__ void computeMutiStageOnchipC2R(DT *input, DT *output, int *factors,
   stage_count = _stage_count;
   last_stage = (stage_count == 1);
 
-
-  // if (__is_mpu())
-  if (clusterId == 0)
+  // if (clusterId == 0)
+  if (__is_mpu())
   {
     __memcpy_async(sram_factors, factors, FFT_MAXFACTORS * sizeof(int),
                    GDRAM2SRAM);
 
     // [Error] this copy does not work, because the length beyond the memory bound
-    __memcpy_async(sram_twiddles, twiddles, 1 * sizeof(DT),
-                GDRAM2SRAM);
-    // __memcpy_async(sram_twiddles, twiddles, twiddles_size * sizeof(DT),
-    //                GDRAM2SRAM);
-
-    printf("we sync successfully at checkpoint 2\n");
+    if (twiddles_size) {
+      __memcpy_async(sram_twiddles, twiddles, twiddles_size * sizeof(DT),
+              GDRAM2SRAM);
+    }
 
     const dft_table_entry *dft_table_gdram =
         (const dft_table_entry *)dft_matrix;
     int dft_matrix_offset = dft_table_gdram[0].offset;
-
-    // mem check on GDRAM
-    if(taskId == 0) {
-      for(int i = 0; i < 160; i++) {
-        printf("dft_matrix[%d]:%d\n",
-                i, ((int *)dft_matrix)[i]);
-      }
-    }
 
     if (dft_matrix_offset != -1) {
       // copy the table
@@ -132,9 +121,7 @@ __mlu_func__ void computeMutiStageOnchipC2R(DT *input, DT *output, int *factors,
     }
     factors = sram_factors;
   }
-
   __sync_cluster();
-  printf("we passed this sync\n");
   if (__is_ipu()) {
     __memcpy(nram_factors, sram_factors, FFT_MAXFACTORS * sizeof(int),
              SRAM2NRAM);
@@ -173,7 +160,7 @@ __mlu_func__ void computeMutiStageOnchipC2R(DT *input, DT *output, int *factors,
         // DT *odd_extra_buffer_batch = odd_extra_buffer + t * (nfft * 2);
 
         // first stage
-
+        printf("we arrived LargeButterflyFirststageC2R\n");
         computeLargeButterflyFirststageC2R<DT>(
             output_batch, input_batch, in_stride, section_num, twiddles,
             sram_dftmtx, (void *)nram_buf, small_factors, direction, nfft,
