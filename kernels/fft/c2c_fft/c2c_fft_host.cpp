@@ -551,6 +551,61 @@ mluOpStatus_t setFFT1dReserveArea(mluOpHandle_t handle, mluOpFFTPlan_t fft_plan,
   return status;
 }
 
+mluOpStatus_t setIRFFT1dReserveArea_v2(mluOpHandle_t handle,
+                                     mluOpFFTPlan_t fft_plan,
+                                     const std::string api) {
+  mluOpStatus_t status = MLUOP_STATUS_SUCCESS;
+
+  VLOG(5) << "Into configure IRFFT1d ReserveArea Addrs (zrg)";
+  const std::string make_plan_api = "[setIRFFT1dReserveArea_v2]";
+
+  size_t CPX_TYPE_SIZE = 0;
+
+  switch (fft_plan->fft_type) {
+    case CNFFT_COMPLEX_HALF2HALF: {
+      CPX_TYPE_SIZE = 2 * 2;
+    } break;
+    case CNFFT_COMPLEX_FLOAT2FLOAT: {
+      CPX_TYPE_SIZE = 4 * 2;
+    }; break;
+    default: {
+      LOG(ERROR) << make_plan_api << ": invalid c2r 1d fft type.";
+      // return;
+      status = MLUOP_STATUS_NOT_SUPPORTED;
+      return status;
+      // return MLUOP_STATUS_BAD_PARAM;
+    }
+  }
+  int nfft = fft_plan->n[0];
+  size_t factors_size = FFT_MAXFACTORS * sizeof(int);  // bytes
+  size_t twiddles_size = sizeof(CPX_TYPE_SIZE) * nfft * 2;
+
+  size_t reservespace_offset = 0;
+  fft_plan->mlu_addrs.twiddles =
+      (uint8_t *)fft_plan->reservespace_addr + reservespace_offset;
+  reservespace_offset += twiddles_size;
+  fft_plan->mlu_addrs.twiddles_end =
+      (uint8_t *)fft_plan->mlu_addrs.twiddles +
+      ((uint8_t *)fft_plan->twiddles_end - (uint8_t *)fft_plan->twiddles);
+
+  fft_plan->mlu_addrs.dft_matrix =
+      (int *)((uint8_t *)fft_plan->reservespace_addr + reservespace_offset);
+  reservespace_offset += DFT_TABLE_SIZE;
+
+  fft_plan->mlu_addrs.factors =
+      (int *)((uint8_t *)fft_plan->reservespace_addr + reservespace_offset);
+  reservespace_offset += factors_size;
+
+  CNRT_CHECK(cnrtMemcpy(fft_plan->mlu_addrs.factors, fft_plan->factors,
+                        FFT_MAXFACTORS * sizeof(int), cnrtMemcpyHostToDev));
+  CNRT_CHECK(cnrtMemcpy(fft_plan->mlu_addrs.twiddles, fft_plan->twiddles,
+                        twiddles_size, cnrtMemcpyHostToDev));
+  CNRT_CHECK(cnrtMemcpy(fft_plan->mlu_addrs.dft_matrix, fft_plan->dft_matrix,
+                        DFT_TABLE_SIZE, cnrtMemcpyHostToDev));
+  return status;
+}
+
+
 mluOpStatus_t setFFT1dReserveArea_v2(mluOpHandle_t handle,
                                      mluOpFFTPlan_t fft_plan,
                                      const std::string api) {

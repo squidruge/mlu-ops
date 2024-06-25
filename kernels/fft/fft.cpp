@@ -278,12 +278,9 @@ mluOpStatus_t MLUOP_WIN_API fftGenerateDftMatrix(void *&_dft_matrix,
                                                  int *factors, const int _nfft,
                                                  const int dir) {
   // allocate space for dft_matrix_table and dft_matrix
-  printf("allocate the dtfmtx\n");
   DT *dft_matrix = new DT[DFT_TABLE_SIZE];  // complex *2(large+small)
   dft_table_entry *dft_matrix_table = (dft_table_entry *)dft_matrix;
-  printf("allocate the dtfmtx successfully\n");
   _dft_matrix = dft_matrix;
-
   dft_table_entry *dft_matrix_table_end =
       dft_matrix_table + MAX_DFT_MATRIX_NR + 1;
   dft_matrix = (DT *)dft_matrix_table_end;
@@ -1590,7 +1587,7 @@ mluOpStatus_t MLUOP_WIN_API mluOpSetFFTReserveArea(mluOpHandle_t handle,
     case CNFFT_COMPLEX_HALF2HALF:
     case CNFFT_COMPLEX_FLOAT2FLOAT: {
       if (fft_plan->rank == 1) {
-        status = setIRFFT1dReserveArea(handle, fft_plan, api);
+        status = setIRFFT1dReserveArea_v2(handle, fft_plan, api);
       } else {
         status = MLUOP_STATUS_NOT_SUPPORTED;
       }

@@ -87,28 +87,49 @@ __mlu_func__ void computeMutiStageOnchipC2R(DT *input, DT *output, int *factors,
 
 
   // if (__is_mpu())
-  if (taskId == 0)
+  if (clusterId == 0)
   {
+    // these copy do not work, maybe adrs are invalid.
     __memcpy_async(sram_factors, factors, FFT_MAXFACTORS * sizeof(int),
                    GDRAM2SRAM);
+    
+    __sync_cluster();
+    printf("we sync successfully \n");
     __memcpy_async(sram_twiddles, twiddles, twiddles_size * sizeof(DT),
                    GDRAM2SRAM);
 
     const dft_table_entry *dft_table_gdram =
         (const dft_table_entry *)dft_matrix;
-    printf("corrupt here??\n");
     int dft_matrix_offset = dft_table_gdram[0].offset;
-    printf("corrupt here!!\n");
+
+    // mem check on GDRAM
+    if(taskId == 0) {
+      for(int i = 0; i < 160; i++) {
+        printf("dft_matrix[%d]:%d\n",
+                i, ((int *)dft_matrix)[i]);
+      }
+    }
+
     if (dft_matrix_offset != -1) {
       // copy the table
       __memcpy(sram_dftmtx, dft_matrix, sizeof(DT) * 2 * dft_matrix_offset,
                GDRAM2SRAM);
       const dft_table_entry *dft_table = (const dft_table_entry *)sram_dftmtx;
-      for(int i = 0; i < 10; i++) {
-        printf("dft_table[%d].radix:%d, offset:%d\n",
-               i, dft_table[i].radix, dft_table[i].offset);
+
+      // mem check on SRAM
+      if(taskId == 0) {
+        for(int i = 0; i < 10; i++) {
+          printf("dft_table[%d].radix:%d, offset:%d\n",
+                  i, dft_table[i].radix, dft_table[i].offset);
+        }
+        for(int i = 0; i < 10; i++) {
+          printf("sram_dftmtx[%d]:%d\n",
+                  i, ((int *)sram_dftmtx)[i]);
+        }
       }
 
+
+      // copy the DFT matrix
       for (int entry = 0;; entry++) {
         if (dft_table[entry + 1].radix == -1) {
           int last_radix = dft_table[entry].radix;

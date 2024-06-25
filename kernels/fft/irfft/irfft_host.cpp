@@ -1359,7 +1359,6 @@ static void configureIRFFT1dWorkspaceAddrs(mluOpHandle_t handle,
 mluOpStatus_t execFFTc2r1d(mluOpHandle_t handle, mluOpFFTPlan_t fft_plan,
                            const float scale_factor, int direction) {
   std::string api = "[execFFTc2r1d]";
-
   VLOG(5) << "launch c2r fft1d";
   // TODO(niyuming) luanch merge kernel
   // int core_num = handle->core_num_per_cluster;
@@ -1408,7 +1407,6 @@ mluOpStatus_t execIRFFT1d(mluOpHandle_t handle, const mluOpFFTPlan_t fft_plan,
   INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
 
 #endif
-
   configureIRFFT1dWorkspaceAddrs(handle, fft_plan, (void *)input,
                                  workspace, output);
   status = execFFTc2r1d(handle, fft_plan, scale_factor, 1);
