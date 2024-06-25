@@ -85,8 +85,8 @@ __mlu_func__ void computeMutiStageOnchipC2R(DT *input, DT *output, int *factors,
   stage_count = _stage_count;
   last_stage = (stage_count == 1);
 
-  // if (__is_mpu())
-  if(taskId == 0)
+
+  if (__is_mpu())
   {
     __memcpy_async(sram_factors, factors, FFT_MAXFACTORS * sizeof(int),
                    GDRAM2SRAM);
@@ -96,9 +96,9 @@ __mlu_func__ void computeMutiStageOnchipC2R(DT *input, DT *output, int *factors,
     // _small_stage_count = small_factors[0];
     const dft_table_entry *dft_table_gdram =
         (const dft_table_entry *)dft_matrix;
-    
+    printf("corrupt here??\n");
     int dft_matrix_offset = dft_table_gdram[0].offset;
-
+    printf("corrupt here!!\n");
     if (dft_matrix_offset != -1) {
       // copy the table
       __memcpy(sram_dftmtx, dft_matrix, sizeof(DT) * 2 * dft_matrix_offset,
