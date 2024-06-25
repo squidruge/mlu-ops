@@ -865,6 +865,43 @@ mluOpStatus_t MLUOP_WIN_API fftTwoStepFactor(const int _n, int *facbuf) {
 }
 
 mluOpStatus_t MLUOP_WIN_API
+mluOpAllocateC2R1D(mluOpHandle_t handle, mluOpFFTPlan_t fft_plan,
+                   mluOpTensorDescriptor_t input_desc,
+                   mluOpTensorDescriptor_t output_desc, const int nfft) {
+  const std::string make_plan_api = "[mluOpAllocateC2R1D]";
+  size_t workspace_size = 0;
+  size_t reservespace_size = 0;
+
+  size_t CPX_TYPE_SIZE = 0;
+
+  switch (fft_plan->fft_type) {
+      case CNFFT_COMPLEX_HALF2HALF: {
+        CPX_TYPE_SIZE = 2 * 2;
+      } break;
+      case CNFFT_COMPLEX_FLOAT2FLOAT: {
+        CPX_TYPE_SIZE = 4 * 2;
+      }; break;
+      default: {
+        LOG(ERROR) << make_plan_api << ": invalid c2r 1d fft type.";
+        return MLUOP_STATUS_BAD_PARAM;
+      }
+    }
+
+  int batch = fft_plan->batch;
+  size_t buffer_size = batch * sizeof(CPX_TYPE_SIZE) * nfft;
+  workspace_size = buffer_size * 3;
+
+  size_t twiddles_size = sizeof(CPX_TYPE_SIZE) * nfft * 2;
+  reservespace_size = sizeof(int) * (FFT_MAXFACTORS)    /* factors */
+                      + twiddles_size + DFT_TABLE_SIZE; /* twiddles */
+
+  fft_plan->workspace_size = workspace_size;
+  fft_plan->reservespace_size = reservespace_size;
+
+  return MLUOP_STATUS_SUCCESS;
+}
+
+mluOpStatus_t MLUOP_WIN_API
 mluOpAllocateC2C1D(mluOpHandle_t handle, mluOpFFTPlan_t fft_plan,
                    mluOpTensorDescriptor_t input_desc,
                    mluOpTensorDescriptor_t output_desc, const int nfft) {
@@ -989,6 +1026,33 @@ mluOpStatus_t MLUOP_WIN_API mluOpAllocateC2C2D(
 /**
  * @degroup C2C_PLAN Floating Complex-to-Complex FFT plan
  */
+
+mluOpStatus_t MLUOP_WIN_API mluOpMakeFFTPlanC2R1D(
+    mluOpHandle_t handle, mluOpFFTPlan_t fft_plan,
+    mluOpTensorDescriptor_t input_desc, mluOpTensorDescriptor_t output_desc,
+    const int rank, const int *n, const int direction) {
+  // to be defined
+  mluOpAllocateC2R1D(handle, fft_plan, input_desc, output_desc, n[0]);
+  fftTwoStepFactor(n[0], fft_plan->factors);
+
+  switch (fft_plan->fft_type) {
+    case CNFFT_COMPLEX_FLOAT2FLOAT:
+      fftGenerateTwiddles<float>(fft_plan->twiddles, fft_plan->twiddles_end,
+                                 fft_plan->factors, n[0], FFT_BACKWARD);
+      fftGenerateDftMatrix<float>(fft_plan->dft_matrix, fft_plan->factors, n[0],
+                                  FFT_BACKWARD);
+      break;
+    case CNFFT_COMPLEX_HALF2HALF:
+      fftGenerateTwiddles<half>(fft_plan->twiddles, fft_plan->twiddles_end,
+                                fft_plan->factors, n[0], FFT_BACKWARD);
+      fftGenerateDftMatrix<half>(fft_plan->dft_matrix, fft_plan->factors, n[0],
+                                 FFT_BACKWARD);
+      break;
+    default:
+      break;
+  }
+  return MLUOP_STATUS_SUCCESS;
+}
 
 mluOpStatus_t MLUOP_WIN_API mluOpMakeFFTPlanC2C1D(
     mluOpHandle_t handle, mluOpFFTPlan_t fft_plan,
@@ -1417,12 +1481,13 @@ mluOpStatus_t MLUOP_WIN_API mluOpMakeFFTPlanMany(
         status = makeRFFT1dPolicy(handle, fft_plan);
       }
     }; break;
-    // r2c to be solved--------------------
+    // c2r to be solved--------------------
     case CNFFT_COMPLEX_HALF2HALF:
     case CNFFT_COMPLEX_FLOAT2FLOAT: {
       if (rank == 1) {
         VLOG(5) << "into make IRFFT1d Policy";
-        status = makeIRFFT1dPolicy(handle, fft_plan);
+        status = mluOpMakeFFTPlanC2R1D(handle, fft_plan, input_desc,
+                                       output_desc, rank, n, direction);
       }
     }; break;
     case CNFFT_COMPLEX_HALF2COMPLEX_HALF:
