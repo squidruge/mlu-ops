@@ -104,8 +104,8 @@ void FftExecutor::cpuCompute() {
     cpu_fp32_output_[0][i] = (cpu_fp32_input_[0][i]);
   }
   auto fft_param = parser_->getProtoNode()->fft_param();
-  int direction = (fft_param.direction() == 0) ? FFTW_FORWARD:FFTW_BACKWARD;
- 
+  int direction = (fft_param.direction() == 0) ? FFTW_FORWARD : FFTW_BACKWARD;
+
 #define TEST_C2C1D_FP32 0
 #define TEST_C2C1D_STRIDE_FP32 1
 #define TEST_C2C2D_FP32 0
@@ -326,7 +326,6 @@ void FftExecutor::cpuCompute() {
 
 #endif
 
-
 #if TEST_R2C2D_STRIDE_FP32
 
   fftwf_plan fft;
@@ -355,11 +354,9 @@ void FftExecutor::cpuCompute() {
 
   fftwf_execute(fft);
 
-
   fftwf_destroy_plan(fft);
 
 #endif
-
 
 #if TEST_C2R2D_STRIDE_FP32
 
@@ -437,7 +434,6 @@ void FftExecutor::cpuCompute() {
 
 #endif
 
-
 #if TEST_C2C1D_STRIDE_FP32
 
   fftwf_plan fft;
@@ -481,12 +477,9 @@ void FftExecutor::cpuCompute() {
 
   fftwf_execute(fft);
 
-
   fftwf_destroy_plan(fft);
 
 #endif
-
-
 }
 
 int64_t FftExecutor::getTheoryOps() {
