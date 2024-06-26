@@ -874,17 +874,17 @@ mluOpAllocateC2R1D(mluOpHandle_t handle, mluOpFFTPlan_t fft_plan,
   size_t CPX_TYPE_SIZE = 0;
 
   switch (fft_plan->fft_type) {
-      case CNFFT_COMPLEX_HALF2HALF: {
-        CPX_TYPE_SIZE = 2 * 2;
-      } break;
-      case CNFFT_COMPLEX_FLOAT2FLOAT: {
-        CPX_TYPE_SIZE = 4 * 2;
-      }; break;
-      default: {
-        LOG(ERROR) << make_plan_api << ": invalid c2r 1d fft type.";
-        return MLUOP_STATUS_BAD_PARAM;
-      }
+    case CNFFT_COMPLEX_HALF2HALF: {
+      CPX_TYPE_SIZE = 2 * 2;
+    } break;
+    case CNFFT_COMPLEX_FLOAT2FLOAT: {
+      CPX_TYPE_SIZE = 4 * 2;
+    }; break;
+    default: {
+      LOG(ERROR) << make_plan_api << ": invalid c2r 1d fft type.";
+      return MLUOP_STATUS_BAD_PARAM;
     }
+  }
 
   int batch = fft_plan->batch;
   size_t buffer_size = batch * sizeof(CPX_TYPE_SIZE) * nfft;
@@ -1044,9 +1044,9 @@ mluOpStatus_t MLUOP_WIN_API mluOpMakeFFTPlanC2R1D(
       break;
     case CNFFT_COMPLEX_HALF2HALF:
       fftGenerateTwiddles<float>(fft_plan->twiddles, fft_plan->twiddles_end,
-                                fft_plan->factors, n[0], 1);
+                                 fft_plan->factors, n[0], 1);
       fftGenerateDftMatrix<float>(fft_plan->dft_matrix, fft_plan->factors, n[0],
-                                 1);
+                                  1);
       break;
     default:
       break;
@@ -1599,7 +1599,6 @@ mluOpStatus_t MLUOP_WIN_API mluOpSetFFTReserveArea(mluOpHandle_t handle,
 mluOpStatus_t MLUOP_WIN_API mluOpExecFFT(
     mluOpHandle_t handle, const mluOpFFTPlan_t fft_plan, const void *input,
     const float scale_factor, void *workspace, void *output, int direction) {
-
   const std::string exec_api = "[mluOpExecFFT]";
   PARAM_CHECK_NE(exec_api, handle, NULL);
   PARAM_CHECK_NE(exec_api, fft_plan, NULL);

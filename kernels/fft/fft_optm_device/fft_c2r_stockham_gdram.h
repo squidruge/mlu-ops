@@ -29,11 +29,9 @@ __mlu_shared__ char sram_buffer[MAX_SRAM_SIZE];
 extern __wram__ char wram_buffer[MAX_WRAM_SIZE];
 
 template <typename DT>
-__mlu_func__ void computeMutiStageOnchipC2R(DT *input, DT *output, int *factors,
-                                         DT *twiddles, const DT *twiddles_end,
-                                         const DT *dft_matrix, DT *buffer,
-                                         int batch, int fft_flag,
-                                         int direction) {
+__mlu_func__ void computeMutiStageOnchipC2R(
+    DT *input, DT *output, int *factors, DT *twiddles, const DT *twiddles_end,
+    const DT *dft_matrix, DT *buffer, int batch, int fft_flag, int direction) {
   int total_num = batch;
   int repeat_num = total_num / taskDim;
   int remain_num = total_num % taskDim;
@@ -86,15 +84,15 @@ __mlu_func__ void computeMutiStageOnchipC2R(DT *input, DT *output, int *factors,
   last_stage = (stage_count == 1);
 
   // if (clusterId == 0)
-  if (__is_mpu())
-  {
+  if (__is_mpu()) {
     __memcpy_async(sram_factors, factors, FFT_MAXFACTORS * sizeof(int),
                    GDRAM2SRAM);
 
-    // [Error] this copy does not work, because the length beyond the memory bound
+    // [Error] this copy does not work, because the length beyond the memory
+    // bound
     if (twiddles_size) {
       __memcpy_async(sram_twiddles, twiddles, twiddles_size * sizeof(DT),
-              GDRAM2SRAM);
+                     GDRAM2SRAM);
     }
 
     const dft_table_entry *dft_table_gdram =
@@ -153,8 +151,8 @@ __mlu_func__ void computeMutiStageOnchipC2R(DT *input, DT *output, int *factors,
     if (repeat_num > 0 || taskId < remain_num) {
       for (int t = t_start; t < t_end; t++) {
         // MLULOG("taskId: %d, batchId: %d\n", taskId, t);
-        DT *input_batch = input + t * (nfft << 1);
-        DT *output_batch = output + t * (nfft << 1);
+        DT *input_batch = input + t * (nfft / 2 + 1) * 2;
+        DT *output_batch = output + t * (nfft);
 
         // DT *buffer_batch = buffer + t * (nfft * 2);
         // DT *odd_extra_buffer_batch = odd_extra_buffer + t * (nfft * 2);
@@ -174,7 +172,7 @@ __mlu_func__ void computeMutiStageOnchipC2R(DT *input, DT *output, int *factors,
         // }
       }
     }
-    
+
     // __sync();
   } else {
     stage_count = _stage_count;

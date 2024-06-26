@@ -35,24 +35,25 @@ __nram__ char
 __wram__ char wram_buffer[MAX_WRAM_SIZE];
 
 __mlu_global__ void MLUKernelIRFFTButterfly(void *input, void *output,
-                                          int *factors, void *twiddles,
-                                          void *twiddles_end, void *dft_matrix,
-                                          void *buffer, int batch, int fft_flag,
-                                          int direction, int dtype_size) {
+                                            int *factors, void *twiddles,
+                                            void *twiddles_end,
+                                            void *dft_matrix, void *buffer,
+                                            int batch, int fft_flag,
+                                            int direction, int dtype_size) {
   switch (dtype_size) {
     case (MLUOP_DTYPE_COMPLEX_FLOAT):
     case (MLUOP_DTYPE_FLOAT): {
       computeMutiStageOnchipC2R<float>((float *)input, (float *)output, factors,
-                                    (float *)twiddles, (float *)twiddles_end,
-                                    (float *)dft_matrix, (float *)buffer, batch,
-                                    fft_flag, direction);
+                                       (float *)twiddles, (float *)twiddles_end,
+                                       (float *)dft_matrix, (float *)buffer,
+                                       batch, fft_flag, direction);
     }; break;
     case (MLUOP_DTYPE_COMPLEX_HALF):
     case (MLUOP_DTYPE_HALF): {
       computeMutiStageOnchipC2R<half>((half *)input, (half *)output, factors,
-                                   (half *)twiddles, (half *)twiddles_end,
-                                   (half *)dft_matrix, (half *)buffer, batch,
-                                   fft_flag, direction);
+                                      (half *)twiddles, (half *)twiddles_end,
+                                      (half *)dft_matrix, (half *)buffer, batch,
+                                      fft_flag, direction);
     }; break;
 
     default: {
@@ -61,12 +62,11 @@ __mlu_global__ void MLUKernelIRFFTButterfly(void *input, void *output,
   }
 }
 
-
 mluOpStatus_t MLUOP_WIN_API kernelIRFFTButterfly(cnrtDim3_t k_dim,
-                                               cnrtFunctionType_t k_type,
-                                               cnrtQueue_t queue,
-                                               mluOpFFTPlan_t fft_plan,
-                                               int direction, FFTFlag flag) {
+                                                 cnrtFunctionType_t k_type,
+                                                 cnrtQueue_t queue,
+                                                 mluOpFFTPlan_t fft_plan,
+                                                 int direction, FFTFlag flag) {
   VLOG(5) << "Launch Kernel kernelIRFFTButterfly <<Union" << k_type / CORE_DIM
           << ", " << k_dim.x << ", " << k_dim.y << ", " << k_dim.z << ">>>";
   KERNEL_CHECK((MLUKernelIRFFTButterfly<<<k_dim, k_type, queue>>>(

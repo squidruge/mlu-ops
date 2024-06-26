@@ -1318,9 +1318,8 @@ static mluOpStatus_t makeIRFFT1dContiguousOutput(mluOpHandle_t handle,
 /* -------------------------------------------------------------------------- */
 
 static void configureIRFFT1dWorkspaceAddrs(mluOpHandle_t handle,
-                                           mluOpFFTPlan_t fft_plan,
-                                           void *input, void *workspace,
-                                           void *output) {
+                                           mluOpFFTPlan_t fft_plan, void *input,
+                                           void *workspace, void *output) {
   VLOG(5) << "Into configure IRFFT1d Workspace Addrs (zrg)";
   const std::string make_plan_api = "[configureIRFFT1dWorkspaceAddrs]";
   size_t workspace_size = 0;
@@ -1352,9 +1351,7 @@ static void configureIRFFT1dWorkspaceAddrs(mluOpHandle_t handle,
   fft_plan->mlu_addrs.output = output;
 
   fft_plan->mlu_addrs.buffer_buf = (uint8_t *)workspace;
-
 }
-
 
 mluOpStatus_t execFFTc2r1d(mluOpHandle_t handle, mluOpFFTPlan_t fft_plan,
                            const float scale_factor, int direction) {
@@ -1363,12 +1360,12 @@ mluOpStatus_t execFFTc2r1d(mluOpHandle_t handle, mluOpFFTPlan_t fft_plan,
   // TODO(niyuming) luanch merge kernel
   // int core_num = handle->core_num_per_cluster;
   mluOpStatus_t status = MLUOP_STATUS_SUCCESS;
-  
+
   cnrtDim3_t k_dim;
   cnrtFunctionType_t k_type;
   policyFunc(handle, &k_dim, &k_type);
   kernelIRFFTButterfly(k_dim, k_type, handle->queue, fft_plan, direction,
-                     FFT_IFFT);
+                       FFT_IFFT);
 
   return status;
 }
@@ -1407,8 +1404,8 @@ mluOpStatus_t execIRFFT1d(mluOpHandle_t handle, const mluOpFFTPlan_t fft_plan,
   INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
 
 #endif
-  configureIRFFT1dWorkspaceAddrs(handle, fft_plan, (void *)input,
-                                 workspace, output);
+  configureIRFFT1dWorkspaceAddrs(handle, fft_plan, (void *)input, workspace,
+                                 output);
   status = execFFTc2r1d(handle, fft_plan, scale_factor, 1);
   return status;
 }

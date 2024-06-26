@@ -552,8 +552,8 @@ mluOpStatus_t setFFT1dReserveArea(mluOpHandle_t handle, mluOpFFTPlan_t fft_plan,
 }
 
 mluOpStatus_t setIRFFT1dReserveArea_v2(mluOpHandle_t handle,
-                                     mluOpFFTPlan_t fft_plan,
-                                     const std::string api) {
+                                       mluOpFFTPlan_t fft_plan,
+                                       const std::string api) {
   mluOpStatus_t status = MLUOP_STATUS_SUCCESS;
 
   VLOG(5) << "Into configure IRFFT1d ReserveArea Addrs (zrg)";
@@ -580,7 +580,6 @@ mluOpStatus_t setIRFFT1dReserveArea_v2(mluOpHandle_t handle,
   size_t factors_size = FFT_MAXFACTORS * sizeof(int);  // bytes
   size_t twiddles_size = sizeof(CPX_TYPE_SIZE) * nfft * 2;
 
-
   size_t reservespace_offset = 0;
   fft_plan->mlu_addrs.twiddles =
       (uint8_t *)fft_plan->reservespace_addr + reservespace_offset;
@@ -590,7 +589,7 @@ mluOpStatus_t setIRFFT1dReserveArea_v2(mluOpHandle_t handle,
       ((uint8_t *)fft_plan->twiddles_end - (uint8_t *)fft_plan->twiddles);
   // twiddles_size check
   printf("!!!!!twiddles_size:%ld\n", (float *)fft_plan->mlu_addrs.twiddles_end -
-         (float *)fft_plan->mlu_addrs.twiddles);
+                                         (float *)fft_plan->mlu_addrs.twiddles);
 
   fft_plan->mlu_addrs.dft_matrix =
       (int *)((uint8_t *)fft_plan->reservespace_addr + reservespace_offset);
@@ -608,7 +607,6 @@ mluOpStatus_t setIRFFT1dReserveArea_v2(mluOpHandle_t handle,
                         DFT_TABLE_SIZE, cnrtMemcpyHostToDev));
   return status;
 }
-
 
 mluOpStatus_t setFFT1dReserveArea_v2(mluOpHandle_t handle,
                                      mluOpFFTPlan_t fft_plan,
@@ -1907,7 +1905,7 @@ mluOpStatus_t execFFT1d(mluOpHandle_t handle, const mluOpFFTPlan_t fft_plan,
 
   configureFFT1dWorkspaceAddrs_v2(handle, fft_plan, (void *)input, workspace,
                                   output);
-  
+
   status = execFFTc2c1d(handle, fft_plan, scale_factor, direction);
 
   INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);

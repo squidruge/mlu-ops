@@ -24,7 +24,6 @@
 #include "kernels/fft/fft_optm_device/irfft_generic_butterfly.h"
 #include "kernels/fft/fft_optm_device/fft_vector_butterfly.h"
 
-
 template <typename DT>
 __mlu_func__ void computeLargeButterflyFirststageC2R(
     DT *output, DT *input, int large_in_stride, int section_num,
@@ -91,7 +90,7 @@ __mlu_func__ void computeLargeButterflyFirststageC2R(
   printf("[debug]checkpoint3 \n");
   MLULOG("nram used: %d bytes.\n",
          (int)((size_t)nram_scratch - (size_t)nram_buffer));
-  
+
   __memcpy_async(_nram_tw, small_twiddles, large_radix * sizeof(DT) * 2,
                  SRAM2NRAM);
 
@@ -113,8 +112,13 @@ __mlu_func__ void computeLargeButterflyFirststageC2R(
                               ? (section_num - i)
                               : max_para_ldst_num;
       if (section_num == 1) {
-        __memcpy_async(nram_para_load, input, sizeof(DT) * large_radix,
-                       GDRAM2NRAM);     //Real FFT
+        __memcpy_async(nram_para_load, input,
+                       sizeof(DT) * 2 * (large_radix / 2 + 1),
+                       GDRAM2NRAM);  // Real FFT
+        for (int i = 0; i < 12; i++) {
+          printf("120 nram_para_load[%d]: (%f, %f) \n", i,
+                 float(nram_para_load[i]), float(nram_para_load[i + 12]));
+        }
       } else {
         // gather load
         // 2d memcpy
@@ -123,11 +127,10 @@ __mlu_func__ void computeLargeButterflyFirststageC2R(
         // 8bytes radix-1024
         // 64bytes
 
-        __memcpy_async(nram_para_load, input + i,
-                       sizeof(DT) * para_load_num, GDRAM2NRAM,
-                       sizeof(DT) * para_load_num,
+        __memcpy_async(nram_para_load, input + i, sizeof(DT) * para_load_num,
+                       GDRAM2NRAM, sizeof(DT) * para_load_num,
                        large_in_stride * sizeof(DT), large_radix - 1);
-      }       //Real FFT
+      }  // Real FFT
     }
 
     // pipeline: store-stage
@@ -142,9 +145,13 @@ __mlu_func__ void computeLargeButterflyFirststageC2R(
       DT *nram_para_store =
           (repeat_id % 2 == 0) ? nram_para_store_ping : nram_para_store_pong;
 
-      if (last_stage) {           //last_stage ?
+      if (last_stage) {  // last_stage ?
         if (section_num == 1) {
-          __memcpy_async(output, nram_para_store, sizeof(DT) * 2 * large_radix,
+          for (int i = 0; i < 12; i++) {
+            printf("nram_para_store[%d]: (%f) \n", i,
+                   float(nram_para_store[i]));
+          }
+          __memcpy_async(output, nram_para_store, sizeof(DT) * large_radix,
                          NRAM2GDRAM);
         } else {
           // scatter-store
@@ -172,16 +179,19 @@ __mlu_func__ void computeLargeButterflyFirststageC2R(
           (repeat_id % 2 != 0) ? nram_para_load_ping : nram_para_load_pong;
       DT *nram_para_store =
           (repeat_id % 2 != 0) ? nram_para_store_ping : nram_para_store_pong;
-
+      for (int i = 0; i < 12; i++) {
+        printf("180 nram_para_load[%d]: (%f, %f) \n", i,
+               float(nram_para_load[i]), float(nram_para_load[i + 12]));
+      }
       int para_ldst_num = (max_para_ldst_num > (section_num - i))
                               ? (section_num - i)
                               : max_para_ldst_num;
 
       // DT *nram_transpose_load = nram_in_r;
-      __bang_transpose(nram_in_r, nram_para_load, large_radix * para_ldst_num,
-                       2);
+      __bang_transpose(nram_in_r, nram_para_load,
+                       (large_radix / 2 + 1) * para_ldst_num, 2);
       // [large_radix, para_ldst_num] -> [para_ldst_num, large_radix]
- 
+
       // Firststage
       for (int compute_id = 0; compute_id < para_ldst_num;
            compute_id += para_ldst_num) {
@@ -207,10 +217,16 @@ __mlu_func__ void computeLargeButterflyFirststageC2R(
             }
           }
         }
-        printf("[debug]checkpoint4 \n");
+        printf("[debug]checkpoint4 : %d\n", para_ldst_num);
+        printf("large_radix: %d\n", large_radix);
+        for (int i = 0; i < 12; i++) {
+          printf("nram_in[%d]: (%f, %f) \n", i, float(nram_in_r[i]),
+                 float(nram_in_r[(large_radix / 2 + 1) * para_ldst_num + i]));
+        }
         MLULOG("computeFirststageMatC2R: %d.\n", radix);
         computeGenericButterflyFirststageMatC2R(
-            nram_out_r, nram_out_i, nram_in_r, nram_in_i, nram_scratch,
+            nram_out_r, nram_out_i, nram_in_r,
+            nram_in_r + (large_radix / 2 + 1) * para_ldst_num, nram_scratch,
             nram_dftmtx, small_section_num * para_ldst_num,
             small_section_num * para_ldst_num, 1, radix);
         printf("[debug]checkpoint5 \n");
@@ -222,9 +238,15 @@ __mlu_func__ void computeLargeButterflyFirststageC2R(
             //  [2, para_ldst_num, large_radix] -> [para_ldst_num, large_radix,
             //  2]
             // DT* nram_transpose_store = nram_in_r;
-
-            __bang_transpose(nram_para_store, nram_out_r, 2,
-                             max_para_ldst_num * large_radix);
+            __memcpy(nram_para_store, nram_out_r,
+                     para_ldst_num * large_radix * sizeof(DT), NRAM2NRAM);
+            for (int i = 0; i < 12; i++) {
+              printf("nram_para_store[%d]: (%f) \n", i,
+                     float(nram_para_store[i]));
+            }
+            printf("last_stage 228\n");
+            // __bang_transpose(nram_para_store, nram_out_r, 2,
+            //                  max_para_ldst_num * large_radix);
 
           } else {
             //  [2, para_ldst_num, large_radix] -> [2, para_ldst_num,
@@ -281,14 +303,14 @@ __mlu_func__ void computeLargeButterflyFirststageC2R(
             }
           }
 
-              // computeGenericButterflyOtherstages(Fout, buffer, twiddles,
-              // radix, section_num, butterfly_num, in_stride, 0, dir);
-              // in_section_length is not found
-              MLULOG("computeGenericButterflyOtherstagesMatC2R: %d.\n", radix);
-              computeGenericButterflyOtherstagesMatC2R(
-                  nram_out_r, nram_out_i, nram_in_r, nram_in_i, nram_scratch,
-                  nram_dftmtx, nram_tw, small_section_num, small_butterfly_num,
-                  para_ldst_num, small_in_stride, radix);
+          // computeGenericButterflyOtherstages(Fout, buffer, twiddles,
+          // radix, section_num, butterfly_num, in_stride, 0, dir);
+          // in_section_length is not found
+          MLULOG("computeGenericButterflyOtherstagesMatC2R: %d.\n", radix);
+          computeGenericButterflyOtherstagesMatC2R(
+              nram_out_r, nram_out_i, nram_in_r, nram_in_i, nram_scratch,
+              nram_dftmtx, nram_tw, small_section_num, small_butterfly_num,
+              para_ldst_num, small_in_stride, radix);
 
           nram_tw += small_butterfly_num * (radix - 1) * 2;
         }  // for (stage_count)
@@ -319,13 +341,13 @@ __mlu_func__ void computeLargeButterflyFirststageC2R(
             }
           }
           // in_section_length is not found
-            MLULOG("computeGenericButterflyLaststageMatC2R: %d.\n", radix);
-            computeGenericButterflyLaststageMatC2R(
-                nram_out_r, nram_out_i, nram_in_r, nram_in_i, nram_scratch,
-                nram_dftmtx, nram_tw, small_section_num, small_butterfly_num,
-                para_ldst_num, small_in_stride, radix);
-            MLULOG("computeGenericButterflyLaststageMatC2R: %d End.\n", radix);
-          
+          MLULOG("computeGenericButterflyLaststageMatC2R: %d.\n", radix);
+          computeGenericButterflyLaststageMatC2R(
+              nram_out_r, nram_out_i, nram_in_r, nram_in_i, nram_scratch,
+              nram_dftmtx, nram_tw, small_section_num, small_butterfly_num,
+              para_ldst_num, small_in_stride, radix);
+          MLULOG("computeGenericButterflyLaststageMatC2R: %d End.\n", radix);
+
           if (last_stage) {
             __bang_transpose(nram_para_store, nram_out_r, 2,
                              max_para_ldst_num * large_radix);
@@ -345,22 +367,16 @@ __mlu_func__ void computeLargeButterflyFirststageC2R(
   }
 }
 
-
-
 template <typename DT>
 __mlu_func__ void computeLargeButterflyOtherstagesC2R(
     DT *output, DT *input, const DT *cur_large_twiddles, const DT *_twiddles,
     const DT *dft_matrix, int large_section_num, int large_butterfly_num,
     int large_in_stride, void *nram_buf, const int *small_factors, int nfft,
-    int dir, int last_stage) {
-
-}
+    int dir, int last_stage) {}
 
 template <typename DT>
 __mlu_func__ void computeLargeButterflyLaststageC2R(
     DT *output, DT *input, const DT *cur_large_twiddles, const DT *_twiddles,
     const DT *dft_matrix, int large_section_num, int large_butterfly_num,
     int large_in_stride, void *nram_buf, const int *small_factors, int nfft,
-    int dir) {
-
-}
+    int dir) {}
