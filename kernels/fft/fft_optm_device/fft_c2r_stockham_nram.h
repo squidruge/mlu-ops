@@ -213,7 +213,7 @@ __mlu_func__ void computeLargeButterflyFirststageC2R(
             nram_out_r, nram_out_i, nram_in_r, nram_in_i, nram_scratch,
             nram_dftmtx, small_section_num * para_ldst_num,
             small_section_num * para_ldst_num, 1, radix);
-
+        printf("[debug]checkpoint5 \n");
         small_stage_count--;
         if (small_stage_count == 0) {
           // nram to gdram

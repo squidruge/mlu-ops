@@ -41,10 +41,19 @@ template <typename DT>
 __mlu_func__ void concatHarizontal(
   DT *dst, DT *src1, DT *src2, int target_width, int target_height,
   int width1, int width2, int height) {
-    __bang_pad(dst, src1, 1, height, width1,
-               0, target_height - height, 0, target_width - width1);
+    printf("[debug]checkpoint4.3.7.1 \n");
+    printf("height:%d\n", height);
+    printf("width1:%d\n", width1);
+    printf("target_height:%d\n", target_height);
+    printf("target_width:%d\n", target_width);
+    // __bang_pad(dst, src1, 1, height, width1, 0,
+    //            target_height - height, 0, target_width - width1);
+    __bang_pad(dst, src1, 1, height, width1, 0,
+               target_height - height, 0, target_width - width1);
+    printf("[debug]checkpoint4.3.7.2 \n");
     dst += width1;
     __memcpy(dst, src2, width2, NRAM2NRAM, target_width, width2, height - 1);
+    printf("[debug]checkpoint4.3.7.3 \n");
 }
 
 
@@ -79,7 +88,7 @@ __mlu_func__ void completeInputMatrix(
 
     // overlap
     DT *compute_buffer = trans_r;
-
+    printf("[debug]checkpoint4.3.1 \n");
     for (int i = 0; i < unturned_times; i++) {
       __memcpy(out_r, in_r, butterfly_num_half * sizeof(DT), NRAM2NRAM);
       __memcpy(out_i, in_i, butterfly_num_half * sizeof(DT), NRAM2NRAM);
@@ -88,6 +97,7 @@ __mlu_func__ void completeInputMatrix(
       out_r += butterfly_num_half;
       out_i += butterfly_num_half;
     }
+    printf("[debug]checkpoint4.3.2 \n");
     reversePoint = out_i;
     if (turning_time) {
       __memcpy(out_r, in_r, turn_part_A * sizeof(DT), NRAM2NRAM);
@@ -111,6 +121,7 @@ __mlu_func__ void completeInputMatrix(
     }
     in_r -= butterfly_num;
     in_i -= butterfly_num;
+    printf("[debug]checkpoint4.3.3 \n");
     for (int i = 0; i < turned_times; i++) {
       __memcpy(out_r, in_r, butterfly_num_half * sizeof(DT), NRAM2NRAM);
       __memcpy(out_i, in_i, butterfly_num_half * sizeof(DT), NRAM2NRAM);
@@ -119,10 +130,12 @@ __mlu_func__ void completeInputMatrix(
       out_r += butterfly_num_half;
       out_i += butterfly_num_half;
     }
-
+    printf("[debug]checkpoint4.3.4 \n");
     // neg
-    __bang_mul_scalar(reversePoint, reversePoint, -1, output_i - reversePoint);
-
+    printf("length:%ld \n", output_i + butterfly_num_half * radix - reversePoint);
+    __bang_mul_scalar(reversePoint, reversePoint, -1,
+                      output_i + butterfly_num_half * radix - reversePoint);
+    printf("[debug]checkpoint4.3.5 \n");
     // vector reverse
     __bang_transpose(trans_unturned_r, output_r,
       unturned_times + turning_time, butterfly_num_half);
@@ -134,9 +147,16 @@ __mlu_func__ void completeInputMatrix(
     __bang_transpose(trans_turned_i, 
       output_i + (unturned_times + turning_time) * butterfly_num_half,
       turned_times, butterfly_num_half);
-    
+    printf("[debug]checkpoint4.3.6 \n");
     __bang_mirror(mirrored_r, trans_turned_r, butterfly_num_half, turned_times);
     __bang_mirror(mirrored_i, trans_turned_i, butterfly_num_half, turned_times);
+    printf("[debug]checkpoint4.3.7 \n");
+
+    for(int i = 0; i < 12; i++)
+    {
+      printf("output_r[%d]:%f\n", i, output_r[i]);
+      printf("trans_unturned_r[%d]:%f\n", i, trans_unturned_r[i]);
+    }
 
     concatHarizontal(output_r, trans_unturned_r, mirrored_r,
                      align_K, align_N, unturned_times + turning_time,
@@ -144,6 +164,7 @@ __mlu_func__ void completeInputMatrix(
     concatHarizontal(output_i, trans_unturned_i, mirrored_i,
                      align_K, align_N, unturned_times + turning_time,
                      turned_times, butterfly_num_half);
+    printf("[debug]checkpoint4.3.8 \n");
 }
 
 
@@ -201,7 +222,7 @@ __mlu_func__ void computeGenericButterflyFirststageMatC2R(
   FFT_CPX_T<DT> in_trans = {nram_out_r, nram_out_i};
 
   FFT_CPX_T<DT> dftmtx;
-
+  printf("[debug]checkpoint4.1 \n");
   if (align_K != radix) {
     dftmtx = {&nram_scratch[nram_scratch_offset],
               &nram_scratch[nram_scratch_offset + align_M * align_K]};
@@ -210,7 +231,7 @@ __mlu_func__ void computeGenericButterflyFirststageMatC2R(
                align_K - radix);
     __bang_pad(dftmtx.i, &nram_dftmtx[radix * radix], 1, radix, radix, 0, 0, 0,
                align_K - radix);
-
+  printf("[debug]checkpoint4.2 \n");
   } else {
     dftmtx = {nram_dftmtx, &nram_dftmtx[radix * radix]};
   }
@@ -219,11 +240,11 @@ __mlu_func__ void computeGenericButterflyFirststageMatC2R(
   DT *RI = &nram_scratch[nram_scratch_offset + align_K * align_N];
   DT *IR = &nram_scratch[nram_scratch_offset + align_K * align_N * 2];
   DT *II = &nram_scratch[nram_scratch_offset + align_K * align_N * 3];
-
+  printf("[debug]checkpoint4.3 \n");
   completeInputMatrix(in_align.r, in_align.i, nram_in_r, nram_in_i,
                       in_trans.r, in_trans.i, in_mirrored.r, in_mirrored.i,
                       length, length_logical, radix, align_K, align_N);
-
+  printf("[debug]checkpoint4.4 \n");
   __bang_reshape_filter(in_align2.r, in_align.r, align_N, 1, 1, align_K);
   __bang_reshape_filter(in_align2.i, in_align.i, align_N, 1, 1, align_K);
 
@@ -239,7 +260,7 @@ __mlu_func__ void computeGenericButterflyFirststageMatC2R(
   __bang_transpose(out_trans.r, out.r, align_M, align_N);
   __memcpy(nram_out_r, out_trans.r, radix * butterfly_num * sizeof(DT),
            NRAM2NRAM);
-
+  printf("[debug]checkpoint4.5 \n");
   __bang_matmul((float *)RI, (float *)dftmtx.r, (float *)in_wram.i, align_M,
                 align_K, align_N);
   __bang_matmul((float *)IR, (float *)dftmtx.i, (float *)in_wram.r, align_M,
