@@ -20,8 +20,8 @@ for n in n_lst:
         "  id: \"input1\"\n" + \
         "  shape {\n" + \
         "    dims: {0}\n".format(batch) + \
-        "    dims: {0}\n".format(n / 2 + 1) + \
-        "    dim_stride: {0}\n".format(n / 2 + 1) + \
+        "    dims: {0}\n".format(n // 2 + 1) + \
+        "    dim_stride: {0}\n".format(n // 2 + 1) + \
         "    dim_stride: 1\n" + \
         "  }\n" + \
         "  layout: LAYOUT_ARRAY\n" + \
