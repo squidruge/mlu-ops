@@ -20,8 +20,8 @@ for n in n_lst:
         "  id: \"input1\"\n" + \
         "  shape {\n" + \
         "    dims: {0}\n".format(batch) + \
-        "    dims: {0}\n".format(n) + \
-        "    dim_stride: {0}\n".format(n) + \
+        "    dims: {0}\n".format(n / 2 + 1) + \
+        "    dim_stride: {0}\n".format(n / 2 + 1) + \
         "    dim_stride: 1\n" + \
         "  }\n" + \
         "  layout: LAYOUT_ARRAY\n" + \
@@ -43,7 +43,7 @@ for n in n_lst:
         "    dim_stride: 1\n" + \
         "  }\n" + \
         "  layout: LAYOUT_ARRAY\n" + \
-        "  dtype: DTYPE_COMPLEX_FLOAT\n" + \
+        "  dtype: DTYPE_FLOAT\n" + \
         "  thresholds {\n" + \
         "    evaluation_threshold: 1e-05\n" + \
         "    evaluation_threshold: 1e-05\n" + \
