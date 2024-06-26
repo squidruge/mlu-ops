@@ -110,9 +110,11 @@ __mlu_func__ void computeMutiStageOnchip(DT *input, DT *output, int *factors,
           int last_radix = dft_table[entry].radix;
           int last_offset = dft_table[entry].offset;
 
-          // last_radix * last_radix < last_radix * 64
-          sram_dftmtx_size = sizeof(DT) * 2 * (last_radix * 64 + last_offset);
-          __memcpy_async(sram_dftmtx, dft_matrix, sram_dftmtx_size, GDRAM2SRAM);
+          const int K_num = 64 / sizeof(DT);
+          int align_K = K_num * ((last_radix + K_num - 1) / K_num);
+          __memcpy_async(sram_dftmtx, dft_matrix,
+                         sizeof(DT) * 2 * (last_radix * align_K + last_offset),
+                         GDRAM2SRAM);
           break;
         }
       }
@@ -375,7 +377,7 @@ __mlu_func__ void computeMutiStageOnchipColumn(DT *input, DT *output,
           int last_radix = dft_table[entry].radix;
           int last_offset = dft_table[entry].offset;
           const int K_num = 64 / sizeof(DT);
-          int align_K = K_num * ((radix + K_num - 1) / K_num);
+          int align_K = K_num * ((last_radix + K_num - 1) / K_num);
           __memcpy_async(sram_dftmtx, dft_matrix,
                          sizeof(DT) * 2 * (last_radix * align_K + last_offset),
                          GDRAM2SRAM);
