@@ -10,7 +10,9 @@ batch = 32
 # n = [2048, 14000]
 # n_lst = [[2048, 13000]]
 
-n_lst = [12, 200, 1024, 4096]
+# n_lst = [12, 200, 1024, 4096]
+n_lst = [12]
+
 
 for n in n_lst:
     file_path = rela_path + 'fft_' + str(n) + '.prototxt'

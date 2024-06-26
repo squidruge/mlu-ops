@@ -103,7 +103,26 @@ void FftExecutor::cpuCompute() {
   }
 
 #define TEST_C2C1D_FP32 0
-#define TEST_C2C2D_FP32 1
+#define TEST_C2C2D_FP32 0
+#define TEST_C2R1D_FP32 1
+
+#if TEST_C2R1D_FP32
+auto outCount = parser_->getOutputDataCount(0);
+auto size = count / 32;
+auto size_out = outCount/32;
+fftwf_plan irfft;
+
+float* fftw_out = ((float*)cpu_fp32_output_[0]);
+fftwf_complex* fftw_in = ((fftwf_complex*)cpu_fp32_input_[0]);
+
+for (int batch_id = 0; batch_id < 32; batch_id++) {
+irfft = fftwf_plan_dft_c2r_1d(size_out, fftw_in + batch_id * size,
+fftw_out + batch_id * size_out, FFTW_ESTIMATE);
+fftwf_execute(irfft);
+}
+fftwf_destroy_plan(irfft);
+
+#endif
 
 #if TEST_C2C1D_FP32
   auto size = count / 32;

@@ -48,8 +48,14 @@ __mlu_func__ void concatHarizontal(
     printf("target_width:%d\n", target_width);
     // __bang_pad(dst, src1, 1, height, width1, 0,
     //            target_height - height, 0, target_width - width1);
+    if(height==1) {
+    __bang_pad(dst, src1, 1, width1, 1, 0,
+               (target_height - height) * target_width + (target_width - width1), 0, 0);
+    }else{
     __bang_pad(dst, src1, 1, height, width1, 0,
                target_height - height, 0, target_width - width1);
+    }
+
     printf("[debug]checkpoint4.3.7.2 \n");
     dst += width1;
     __memcpy(dst, src2, width2, NRAM2NRAM, target_width, width2, height - 1);
@@ -152,11 +158,11 @@ __mlu_func__ void completeInputMatrix(
     __bang_mirror(mirrored_i, trans_turned_i, butterfly_num_half, turned_times);
     printf("[debug]checkpoint4.3.7 \n");
 
-    for(int i = 0; i < 12; i++)
-    {
-      printf("output_r[%d]:%f\n", i, output_r[i]);
-      printf("trans_unturned_r[%d]:%f\n", i, trans_unturned_r[i]);
-    }
+    // for(int i = 0; i < 12; i++)
+    // {
+    //   printf("output_r[%d]:%f\n", i, output_r[i]);
+    //   printf("trans_unturned_r[%d]:%f\n", i, trans_unturned_r[i]);
+    // }
 
     concatHarizontal(output_r, trans_unturned_r, mirrored_r,
                      align_K, align_N, unturned_times + turning_time,
@@ -241,6 +247,7 @@ __mlu_func__ void computeGenericButterflyFirststageMatC2R(
   DT *IR = &nram_scratch[nram_scratch_offset + align_K * align_N * 2];
   DT *II = &nram_scratch[nram_scratch_offset + align_K * align_N * 3];
   printf("[debug]checkpoint4.3 \n");
+  printf("butterfly_num: %d\n",butterfly_num);
   completeInputMatrix(in_align.r, in_align.i, nram_in_r, nram_in_i,
                       in_trans.r, in_trans.i, in_mirrored.r, in_mirrored.i,
                       length, length_logical, radix, align_K, align_N);
@@ -280,7 +287,7 @@ __mlu_func__ void  computeGenericButterflyOtherstagesMatC2R(
     int radix) {
 
   const int para_num = butterfly_num * section_num * para_large_butterfly;
-
+  
   const int align_M = radix;  // no align
   const int K_num = 64 / sizeof(DT);
   const int align_K = K_num * ((radix + K_num - 1) / K_num);
