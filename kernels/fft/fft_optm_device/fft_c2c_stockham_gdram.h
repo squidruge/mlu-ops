@@ -70,7 +70,7 @@ __mlu_func__ void computeMutiStageOnchip(DT *input, DT *output, int *factors,
   const int twiddles_size = twiddles_end - twiddles;
   sram_offset += twiddles_size * sizeof(DT);
 
-  int sram_dftmtx_size = 0;
+  // int sram_dftmtx_size = 0;
   DT *sram_dftmtx = (DT *)(sram_buffer + sram_offset);
 
   const int _stage_count = factors[0];
