@@ -78,8 +78,8 @@ endif()
 # PROTOBUF_PROTOC_EXECUTABLE
 set(CMAKE_FIND_LIBRARY_SUFFIXES ${ORIG_FIND_LIBRARY_SUFFIXES})
 
-set(LIBFFTWF_INCLUDE_DIRS "/workspace/fftwf/include")
-set(LIBFFTWF_LIBRARY "/workspace/fftwf/lib")
+set(LIBFFTWF_INCLUDE_DIRS "/root/opt/fftw-3.3.10-float/include")
+set(LIBFFTWF_LIBRARY "/root/opt/fftw-3.3.10-float/lib")
 
 
 message(STATUS "libxml2 include: " ${LIBXML2_INCLUDE_DIRS})
@@ -218,7 +218,7 @@ foreach(target_gtest ${targets_mluop_gtest})
   target_link_libraries(${target_gtest} cnrt cndev cndrv pthread gtest_shared stdc++ m dl)
   target_link_libraries(${target_gtest} ${LIBFFTWF_LIBRARY} ${LIBXML2_LIBRARIES} ${PROTOBUF_LIBRARIES} ${EXTRA_LIBS})
   target_link_libraries(${target_gtest} mluop_test_proto)
-  target_link_libraries(${target_gtest} /workspace/fftwf/lib/libfftw3f.a)
+  target_link_libraries(${target_gtest} /root/opt/fftw-3.3.10-float/lib/libfftw3f.a)
   set_target_properties(${target_gtest}
     PROPERTIES
     INSTALL_RPATH "$ORIGIN/../../$LIB;../../lib${LIB_SUFFIX}"

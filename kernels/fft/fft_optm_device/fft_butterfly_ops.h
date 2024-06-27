@@ -35,6 +35,13 @@ struct FFT_CPX_T {
     X = (DT *)((intptr_t)(X) ^ (intptr_t)(Y)); \
   }
 
+#define FFT_SWAP_VALUE(X, Y)                    \
+  do {                                          \
+    int temp = (X);                             \
+    (X) = (Y);                                  \
+    (Y) = temp;                                 \
+  } while (0)
+
 #define MLU_CPX_ADD(Z, A, B, VL)   \
   {                                \
     __bang_add(Z.r, A.r, B.r, VL); \

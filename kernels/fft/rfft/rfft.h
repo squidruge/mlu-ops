@@ -31,9 +31,16 @@ mluOpStatus_t makeRFFT1dPolicy(mluOpHandle_t handle, mluOpFFTPlan_t fft_plan);
 mluOpStatus_t setRFFT1dReserveArea(mluOpHandle_t handle,
                                    mluOpFFTPlan_t fft_plan,
                                    const std::string api);
+                                   
+mluOpStatus_t setRFFT1dReserveArea_v2(mluOpHandle_t handle,
+                                     mluOpFFTPlan_t fft_plan,
+                                     const std::string api);
 
 mluOpStatus_t execRFFT1d(mluOpHandle_t handle, const mluOpFFTPlan_t fft_plan,
                          const void *input, const float scale_factor,
                          void *workspace, void *output);
+
+mluOpStatus_t execFFTr2c1d(mluOpHandle_t handle, mluOpFFTPlan_t fft_plan,
+                           const float scale_factor);
 
 #endif  // KERNELS_FFT_RFFT_RFFT_H_
