@@ -32,6 +32,10 @@ mluOpStatus_t setIRFFT1dReserveArea(mluOpHandle_t handle,
                                     mluOpFFTPlan_t fft_plan,
                                     const std::string api);
 
+mluOpStatus_t setIRFFT1dReserveArea_v2(mluOpHandle_t handle,
+                                    mluOpFFTPlan_t fft_plan,
+                                    const std::string api);
+
 mluOpStatus_t execIRFFT1d(mluOpHandle_t handle, const mluOpFFTPlan_t fft_plan,
                           const void *input, const float scale_factor,
                           void *workspace, void *output);

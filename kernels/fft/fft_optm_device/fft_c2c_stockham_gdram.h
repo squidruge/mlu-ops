@@ -426,6 +426,26 @@ __mlu_func__ void computeMutiStageOnchipColumn(DT *input, DT *output,
 
     if (_stage_count != 1) FFT_SWAP_PTR(buffer, output);
 
+    // [nfft, batch]
+    // 2048 batch / 32 core = 64 batch per core
+    // max_para_batch (load, store, compute)
+    // batch_loop_num = (batch per core) / max_para_batch
+
+    // first-stage instride *= batch
+    // for(b = 0; b< batch_loop_num; b++)
+    //    large butterfly
+    //    store [batch_loop_num][nfft, max_para_batch]   b(2)*max_para_batch(64)
+
+    // other-stage instride *= max_para_batch
+    // for(b = 0; b< batch_loop_num; b++)
+    //    large butterfly
+    //    store [batch_loop_num][nfft, max_para_batch]
+
+    // last-stage
+    // for(b = 0; b< batch_loop_num; b++)
+    //    large butterfly
+    //    store [nfft, batch]
+
     if (repeat_num > 0 || taskId < remain_num) {
       small_factors = factors + small_factors_offset;
       // max_para_batch = small_factors[3] > batch ? batch : small_factors[3];

@@ -936,6 +936,7 @@ __mlu_func__ void computeLargeButterflyFirststageBatchPingpong(
                       small_butterfly_num, para_num, small_in_stride, dir,
                       radix);
                 } else {
+                  // TODO(zrg):check 
                   computeGenericButterflyLaststageMat(
                       nram_para_store_pong,
                       nram_para_store_pong + max_para_ldst_num * large_radix,

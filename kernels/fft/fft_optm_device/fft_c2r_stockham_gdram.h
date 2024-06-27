@@ -88,12 +88,15 @@ __mlu_func__ void computeMutiStageOnchipC2R(DT *input, DT *output, int *factors,
   stage_count = _stage_count;
   last_stage = (stage_count == 1);
 
+
+
   if (__is_mpu()) {
     __memcpy_async(sram_factors, factors, FFT_MAXFACTORS * sizeof(int),
                    GDRAM2SRAM);
     if (twiddles_size) {
       __memcpy_async(sram_twiddles, twiddles, twiddles_size * sizeof(DT),
                      GDRAM2SRAM);
+
     }
 
     const dft_table_entry *dft_table_gdram =

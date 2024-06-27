@@ -2112,7 +2112,7 @@ mluOpStatus_t execIRFFT1d_v2(mluOpHandle_t handle,
     //                                     fft_plan->mlu_addrs.input);
     //   INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
     // }
-
+    
     status = execFFTc2r1d(handle, fft_plan, scale_factor);
     INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
 
