@@ -37,16 +37,8 @@ __mlu_func__ void computeMutiStageR2COnchip(DT *input, DT *output, int *factors,
   int repeat_num = total_num / taskDim;
   int remain_num = total_num % taskDim;
  
-  //printf("taskDim=%d\n", taskDim);
-  //if(__is_ipu()){
-  //  for(int i = 0; i < 32; i++)
-  //    printf("input[%d]=%f\n", i, input[i]);
-  //}
   char *nram_buf = nram_buffer;
-  // Each core needs to process "t_len" blocks, "remain_num" is evenly
-  // assigned to the previous "remian_num" cores.
   int t_len = repeat_num + ((remain_num > 0 && taskId < remain_num) ? 1 : 0);
-  // Calculate the offset of the block at each core.
   int t_start = taskId - remain_num <= 0 ? taskId * (repeat_num + 1)
                                          : (remain_num * (repeat_num + 1) +
                                             (taskId - remain_num) * repeat_num);
@@ -60,9 +52,8 @@ __mlu_func__ void computeMutiStageR2COnchip(DT *input, DT *output, int *factors,
 
   int radix, section_num, butterfly_num, in_stride, stage_count, value_mul,
       small_factors_offset;
-  // const int is_two_stages = (stage_count == 2);  // the variable for
-  // twostages
-  // const int is_in_place = (input == output);
+  int nfft_in = 0;
+  int nfft_out = 0;
 
   int *small_factors;
   int last_stage;
@@ -81,14 +72,13 @@ __mlu_func__ void computeMutiStageR2COnchip(DT *input, DT *output, int *factors,
 
   const int _stage_count = factors[0];
   const int nfft = factors[1];
-  if (__is_ipu()) MLULOG("nfft: %d\n", nfft);
 
   // first stage
   radix = factors[5 + 0];
   section_num = factors[5 + 1];
   in_stride = factors[5 + 3];
   small_factors_offset = factors[5 + 4];
-
+  nfft_out = ((nfft / section_num) / 2 + 1) * section_num; 
   //small_factors = factors + small_factors_offset;
 
   stage_count = _stage_count;
@@ -167,11 +157,10 @@ __mlu_func__ void computeMutiStageR2COnchip(DT *input, DT *output, int *factors,
     // out_place: input -> output (1 stage)
     //            input -> buffer -> output (2 stage)
     //            input -> buffer -> odd_extra_buffer -> output (3 stage)
-    //            input -> buffer -> output -> buffer -> output (4 stage)
-    //            input -> buffer -> output -> buffer -> odd_extra_buffer ->
-    //            output (5 stage)
+    //            input -> buffer -> odd_extra_buffer -> buffer -> output (4 stage)
+    //            input -> buffer -> odd_extra_buffer -> buffer -> odd_extra_buffer -> output (5 stage)
+    //            input -> buffer -> odd_extra_buffer -> buffer -> odd_extra_buffer -> buffer -> output (6 stage)
 
-    // _stage_count = stage_count;
     
     if (_stage_count != 1) FFT_SWAP_PTR(buffer, output);
     small_factors = factors + small_factors_offset;
@@ -180,7 +169,7 @@ __mlu_func__ void computeMutiStageR2COnchip(DT *input, DT *output, int *factors,
       for (int t = t_start; t < t_end; t++) {
         // MLULOG("taskId: %d, batchId: %d\n", taskId, t);
         DT *input_batch = input + t * nfft;
-        DT *output_batch = output + t * (nfft * 2);
+        DT *output_batch = output + t * (nfft_out << 1);
         // DT *buffer_batch = buffer + t * (nfft * 2);
         // DT *odd_extra_buffer_batch = odd_extra_buffer + t * (nfft * 2);
 
@@ -193,6 +182,7 @@ __mlu_func__ void computeMutiStageR2COnchip(DT *input, DT *output, int *factors,
 
     }
     // __sync();
+    FFT_SWAP_VALUE(nfft_in, nfft_out);
   } else {
     stage_count = _stage_count;
     last_stage = (stage_count == 1);
@@ -229,6 +219,7 @@ __mlu_func__ void computeMutiStageR2COnchip(DT *input, DT *output, int *factors,
     butterfly_num = factors[value_mul++];
     in_stride = factors[value_mul++];
     small_factors_offset = factors[value_mul++];
+    nfft_out = ((butterfly_num * radix) / 2 + 1) * section_num;
 
     small_factors = factors + small_factors_offset;
 
@@ -236,8 +227,8 @@ __mlu_func__ void computeMutiStageR2COnchip(DT *input, DT *output, int *factors,
       // MLULOG("other stage radix: %d \n", radix);
       if (repeat_num > 0 || taskId < remain_num) {
         for (int t = t_start; t < t_end; t++) {
-          DT *output_batch = output + t * (nfft << 1);
-          DT *buffer_batch = buffer + t * (nfft << 1);
+          DT *output_batch = output + t * (nfft_out << 1);
+          DT *buffer_batch = buffer + t * (nfft_in << 1);
 
           computeLargeButterflyOtherstagesR2C<DT>(
               output_batch, buffer_batch, (DT *)twiddles, _twiddles,
@@ -248,6 +239,7 @@ __mlu_func__ void computeMutiStageR2COnchip(DT *input, DT *output, int *factors,
         }
       }
     }
+    FFT_SWAP_VALUE(nfft_in, nfft_out);
     twiddles += ((butterfly_num + 2) / 2) * (radix - 1) * 2;  // 2 for complex
   }                                               // for (stage_count)
 
@@ -267,6 +259,7 @@ __mlu_func__ void computeMutiStageR2COnchip(DT *input, DT *output, int *factors,
     butterfly_num = factors[value_mul++];
     in_stride = factors[value_mul++];
     small_factors_offset = factors[value_mul];
+    nfft_out = nfft / 2 + 1;
 
     small_factors = factors + small_factors_offset;
 
@@ -275,8 +268,8 @@ __mlu_func__ void computeMutiStageR2COnchip(DT *input, DT *output, int *factors,
 
       if (repeat_num > 0 || taskId < remain_num) {
         for (int t = t_start; t < t_end; t++) {
-          DT *output_batch = output + t * (nfft << 1);
-          DT *buffer_batch = buffer + t * (nfft << 1);
+          DT *output_batch = output + t * (nfft_out << 1);
+          DT *buffer_batch = buffer + t * (nfft_in << 1);
 
           computeLargeButterflyLaststageR2C<DT>(
               output_batch, buffer_batch, (DT *)twiddles, _twiddles,

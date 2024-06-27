@@ -768,7 +768,6 @@ mluOpStatus_t MLUOP_WIN_API fftFactor(mluOpFFTPlan_t fft_plan, const int _n, int
       default:
         break;
     }
-    
 
     section_num = n;
     stage_num++;

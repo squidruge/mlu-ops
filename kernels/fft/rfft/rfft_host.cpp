@@ -372,47 +372,83 @@ static void configureRFFT1dWorkspaceAddrs_v2(mluOpHandle_t handle,
                                             mluOpFFTPlan_t fft_plan,
                                             void *input, void *workspace,
                                             void *output) {
-  VLOG(5) << "Into configure RFFT1d Workspace Addrs (zrg)";
-  const std::string make_plan_api = "[configureRFFT1dWorkspaceAddrs_v2]";
+//  VLOG(5) << "Into configure RFFT1d Workspace Addrs (zrg)";
+//  const std::string make_plan_api = "[configureRFFT1dWorkspaceAddrs_v2]";
+//  size_t workspace_size = 0;
+//  size_t reservespace_size = 0;
+//
+//  size_t CPX_TYPE_SIZE = 0;
+//
+//  switch (fft_plan->fft_type) {
+//    case CNFFT_HALF2COMPLEX_HALF: {
+//      CPX_TYPE_SIZE = 2 * 2;
+//    } break;
+//    case CNFFT_FLOAT2COMPLEX_FLOAT: {
+//      CPX_TYPE_SIZE = 4 * 2;
+//    }; break;
+//    default: {
+//      LOG(ERROR) << make_plan_api << ": invalid c2c 1d fft type.";
+//      return;
+//      // return MLUOP_STATUS_BAD_PARAM;
+//    }
+//  }
+//
+//  int batch = fft_plan->batch;
+//  int nfft = fft_plan->n[0];
+//
+//  //printf("CPX_TYPE_SIZE=%ld\n", CPX_TYPE_SIZE);
+//  //printf("sizeof(CPX_TYPE_SIZE)=%ld\n", sizeof(CPX_TYPE_SIZE));
+//  size_t buffer_size = batch * sizeof(CPX_TYPE_SIZE) * nfft;
+//  size_t twiddles_size = sizeof(CPX_TYPE_SIZE) * nfft * 2;
+//
+//  // mlu_addrs
+//  // fft_plan->mlu_addrs.input = workspace;
+//  // fft_plan->mlu_addrs.output = fft_plan->mlu_addrs.input + buffer_size;
+//  // fft_plan->mlu_addrs.buffer = fft_plan->mlu_addrs.output + buffer_size;
+//
+//  fft_plan->mlu_addrs.input = input;
+//  fft_plan->mlu_addrs.output = output;
+//  // fft_plan->mlu_addrs.buffer_in = (uint8_t *)workspace;
+//  // fft_plan->mlu_addrs.buffer_out = (uint8_t *)workspace + buffer_size;
+//  // fft_plan->mlu_addrs.buffer_buf = (uint8_t *)workspace + 2 * buffer_size;
+//
+//  fft_plan->mlu_addrs.buffer_buf = (uint8_t *)workspace;
+//
+//  // fft_plan->mlu_addrs.twiddles = mlu_runtime_.allocate(reservespace_size);
+
+  VLOG(5) << "Into configure FFT1d Workspace Addrs";
+  const std::string make_plan_api = "[configureFFT1dWorkspaceAddrs_v2]";
   size_t workspace_size = 0;
   size_t reservespace_size = 0;
 
-  size_t CPX_TYPE_SIZE = 0;
+  mluOpDataType_t in_c_dtype = fft_plan->input_dtype;
+  mluOpDataType_t out_c_dtype = fft_plan->output_dtype;
 
-  switch (fft_plan->fft_type) {
-    case CNFFT_HALF2COMPLEX_HALF: {
-      CPX_TYPE_SIZE = 2 * 2;
-    } break;
-    case CNFFT_FLOAT2COMPLEX_FLOAT: {
-      CPX_TYPE_SIZE = 4 * 2;
-    }; break;
-    default: {
-      LOG(ERROR) << make_plan_api << ": invalid c2c 1d fft type.";
-      return;
-      // return MLUOP_STATUS_BAD_PARAM;
-    }
-  }
+  //size_t in_c_dtype_size = mluOpDataTypeBytes(in_c_dtype);
+  size_t out_c_dtype_size = mluOpDataTypeBytes(out_c_dtype);
 
   int batch = fft_plan->batch;
   int nfft = fft_plan->n[0];
 
-  size_t buffer_size = batch * sizeof(CPX_TYPE_SIZE) * nfft;
-  size_t twiddles_size = sizeof(CPX_TYPE_SIZE) * nfft * 2;
+  size_t buffer_size = batch * out_c_dtype_size * nfft;
 
-  // mlu_addrs
-  // fft_plan->mlu_addrs.input = workspace;
-  // fft_plan->mlu_addrs.output = fft_plan->mlu_addrs.input + buffer_size;
-  // fft_plan->mlu_addrs.buffer = fft_plan->mlu_addrs.output + buffer_size;
+  size_t offset = 0;
+  fft_plan->mlu_addrs.buffer_buf = (uint8_t *)workspace + offset;
+  offset += buffer_size * 2;
 
-  fft_plan->mlu_addrs.input = input;
-  fft_plan->mlu_addrs.output = output;
-  // fft_plan->mlu_addrs.buffer_in = (uint8_t *)workspace;
-  // fft_plan->mlu_addrs.buffer_out = (uint8_t *)workspace + buffer_size;
-  // fft_plan->mlu_addrs.buffer_buf = (uint8_t *)workspace + 2 * buffer_size;
+  if (fft_plan->is_input_contiguous) {
+    fft_plan->mlu_addrs.input = input;
+  } else {
+    fft_plan->mlu_addrs.input = (uint8_t *)workspace + offset;
+    offset += buffer_size;
+  }
 
-  fft_plan->mlu_addrs.buffer_buf = (uint8_t *)workspace;
-
-  // fft_plan->mlu_addrs.twiddles = mlu_runtime_.allocate(reservespace_size);
+  if (fft_plan->is_output_contiguous) {
+    fft_plan->mlu_addrs.output = output;
+  } else {
+    fft_plan->mlu_addrs.output = (uint8_t *)workspace + offset;
+    offset += buffer_size;
+  }
 }
 
 mluOpStatus_t setRFFT1dReserveArea(mluOpHandle_t handle,

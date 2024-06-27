@@ -615,9 +615,6 @@ __mlu_func__ void computeGenericButterflyOtherstagesMatR2C(
 
   __bang_sub(&Fin.r[para_num], RR, II, para_num * (radix - 1));
   
-  if(__is_ipu()){
-    printf("radix = %d, para_num = %d, align_N = %d, align_K = %d\n", radix, para_num, align_N, align_K);
-  }
   __bang_transpose(in_trans.r, Fin.r, radix, para_num);
   
   __bang_add(&Fin.i[para_num], RI, IR, para_num * (radix - 1));
