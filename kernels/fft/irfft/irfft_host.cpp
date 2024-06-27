@@ -1321,31 +1321,52 @@ mluOpStatus_t execIRFFT1d(mluOpHandle_t handle, const mluOpFFTPlan_t fft_plan,
   mluOpStatus_t status = MLUOP_STATUS_SUCCESS;
 
   std::string api = "[mluOpExecFFT]";
-  configureIRFFT1dMatmulWorkspaceAddrs(handle, fft_plan, (void *)input,
-                                       workspace, output);
 
-  status = makeIRFFT1dContiguousInput(handle, fft_plan, input);
-  INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
+  if (fft_plan->prime) {
+    configureIRFFT1dMatmulWorkspaceAddrs(handle, fft_plan, (void *)input,
+                                         workspace, output);
 
-  status = padIRFFT1dContiguousInput(handle, fft_plan);
-  INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
+    status = makeIRFFT1dContiguousInput(handle, fft_plan, input);
+    INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
 
-  status = mergeIRFFT1dInput(handle, fft_plan);
-  INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
+    status = padIRFFT1dContiguousInput(handle, fft_plan);
+    INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
 
-  status = transposeIRFFT1dPaddedInput(handle, fft_plan);
-  INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
+    status = mergeIRFFT1dInput(handle, fft_plan);
+    INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
 
-  status = quantizeIRFFT1dPaddedInput(handle, fft_plan);
-  INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
+    status = transposeIRFFT1dPaddedInput(handle, fft_plan);
+    INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
 
-  status = computeIRFFT1dMatmulResult(handle, fft_plan, scale_factor);
-  INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
+    status = quantizeIRFFT1dPaddedInput(handle, fft_plan);
+    INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
 
-  status = mergeIRFFT1dOutput(handle, fft_plan, scale_factor);
-  INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
+    status = computeIRFFT1dMatmulResult(handle, fft_plan, scale_factor);
+    INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
 
-  status = makeIRFFT1dContiguousOutput(handle, fft_plan, output);
-  INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
+    status = mergeIRFFT1dOutput(handle, fft_plan, scale_factor);
+    INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
+
+    status = makeIRFFT1dContiguousOutput(handle, fft_plan, output);
+    INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
+  } else {
+    // configureIRFFT1dMatmulWorkspaceAddrs_v2(handle, fft_plan, (void *)input,
+    // workspace,
+    //                                 output);
+    // // if (!fft_plan->is_input_contiguous) {
+    // //   status = makeFFT1dContiguousInput(handle, fft_plan, input,
+    // //                                     fft_plan->mlu_addrs.input);
+    // //   INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
+    // // }
+
+    // status = execFFTc2r1d(handle, fft_plan, scale_factor);
+    // INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
+
+    // // if (!fft_plan->is_output_contiguous) {
+    // //   status = makeFFT1dContiguousOutput(handle, fft_plan, output,
+    // //                                      fft_plan->mlu_addrs.output);
+    // //   INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
+    // // }
+  }
   return status;
 }

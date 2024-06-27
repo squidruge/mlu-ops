@@ -107,11 +107,12 @@ void FftExecutor::cpuCompute() {
   int direction = (fft_param.direction() == 0) ? FFTW_FORWARD : FFTW_BACKWARD;
 
 #define TEST_C2C1D_FP32 0
-#define TEST_C2C1D_STRIDE_FP32 1
+#define TEST_C2C1D_STRIDE_FP32 0
 #define TEST_C2C2D_FP32 0
 #define TEST_C2C2D_STRIDE_FP32 0
 #define TEST_R2C2D_STRIDE_FP32 0
 #define TEST_R2C1D_STRIDE_FP32 0
+#define TEST_C2R1D_STRIDE_FP32 1
 #define TEST_C2R2D_STRIDE_FP32 0
 
 #if TEST_C2C1D_FP32
@@ -429,6 +430,37 @@ void FftExecutor::cpuCompute() {
   //   }
   //   printf("\n");
   // }
+
+  fftwf_destroy_plan(fft);
+
+#endif
+
+#if TEST_C2R1D_STRIDE_FP32
+
+  fftwf_plan fft;
+
+  float *fftw_out = ((float *)cpu_fp32_output_[0]);
+  fftwf_complex *fftw_in = ((fftwf_complex *)cpu_fp32_input_[0]);
+
+  int n[1];
+  n[0] = parser_->getProtoNode()->fft_param().n()[0];
+  int howmany = count / (n[0] / 2 + 1);
+  int inembed[1] = {n[0] / 2 + 1};
+  int onembed[1] = {n[0]};
+
+  int istride = 1;
+  int ostride = 1;
+  int idist = (n[0] / 2 + 1);
+  int odist = n[0];
+
+  fft = fftwf_plan_many_dft_c2r(1, n, howmany, fftw_in, inembed, istride, idist,
+                                fftw_out, onembed, ostride, odist,
+                                FFTW_ESTIMATE);  // Setup fftw plan for fft
+  printf("fftw:\n");
+  printf("howmany: %d\n", howmany);
+  printf("n[0]: %d\n", n[0]);
+
+  fftwf_execute(fft);
 
   fftwf_destroy_plan(fft);
 

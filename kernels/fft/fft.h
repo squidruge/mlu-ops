@@ -310,6 +310,10 @@ mluOpStatus_t MLUOP_WIN_API kernelFFT1dButterflyRow(
     cnrtDim3_t k_dim, cnrtFunctionType_t k_type, cnrtQueue_t queue,
     mluOpFFTPlan_t fft_plan, int direction, FFTFlag flag);
 
+mluOpStatus_t MLUOP_WIN_API kernelFFT1dButterflyRowC2R(
+    cnrtDim3_t k_dim, cnrtFunctionType_t k_type, cnrtQueue_t queue,
+    mluOpFFTPlan_t fft_plan, FFTFlag flag);
+
 mluOpStatus_t MLUOP_WIN_API kernelFFT1dButterflyColumn(
     cnrtDim3_t k_dim, cnrtFunctionType_t k_type, cnrtQueue_t queue,
     mluOpFFTPlan_t fft_plan, int direction, FFTFlag flag);
@@ -319,6 +323,10 @@ mluOpStatus_t MLUOP_WIN_API kernelFFT2dButterflyColumn(
     mluOpFFTPlan_t fft_plan, int direction, FFTFlag flag);
 
 mluOpStatus_t MLUOP_WIN_API kernelFFT2dButterflyRow(
+    cnrtDim3_t k_dim, cnrtFunctionType_t k_type, cnrtQueue_t queue,
+    mluOpFFTPlan_t fft_plan, int direction, FFTFlag flag);
+
+mluOpStatus_t MLUOP_WIN_API kernelFFT2dButterflyRowC2R(
     cnrtDim3_t k_dim, cnrtFunctionType_t k_type, cnrtQueue_t queue,
     mluOpFFTPlan_t fft_plan, int direction, FFTFlag flag);
 
