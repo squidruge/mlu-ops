@@ -517,6 +517,14 @@ mluOpStatus_t MLUOP_WIN_API fftFactor(const int _n, int *facbuf,
         }
         break;
 
+      case 12:
+        if (n % 4 == 0) {
+          r = 4;
+        } else if ((n % 3) == 0) {
+          r = 3;
+        }
+        break;
+
       case 140:
         if (n % 14 == 0) {
           r = 14;
@@ -725,8 +733,40 @@ mluOpStatus_t MLUOP_WIN_API fftTwoStepFactor(mluOpFFTPlan_t fft_plan,
   while (n > 1) {
     if (is_row_major) {
       switch (_n) {
-        case (32 * 17):
-          r = 32 * 17;
+        case ((32 * 17) * (32 * 17)):
+          if (n % (32 * 17) == 0) {
+            r = (32 * 17);
+          }
+          break;
+
+        case ((32 * 17)):
+          if (n % (32 * 17) == 0) {
+            r = (32 * 17);
+          }
+          break;
+
+        case ((23 * 300)):
+          if (n % (23) == 0) {
+            r = (23);
+          } else if (n % (300) == 0) {
+            r = (300);
+          }
+          break;
+
+        case ((32) * (32 * 17)):
+          if (n % (32 * 17) == 0) {
+            r = (32 * 17);
+          } else if (n % (32) == 0) {
+            r = (32);
+          }
+          break;
+
+        case ((58 * 17) * (33)):
+          if (n % (58 * 17) == 0) {
+            r = (58 * 17);
+          } else if (n % (33) == 0) {
+            r = (33);
+          }
           break;
 
         case (200):
@@ -1474,8 +1514,9 @@ mluOpStatus_t MLUOP_WIN_API mluOpMakeFFTPlanC2C1D(
     const int rank, const int *n) {
   // reservespace_addr_ = mlu_runtime_.allocate(reservespace_size_)
   // st = CNAME(openfft_allocate_c2c_plan_1d)(nfft, fin, fout, dir);
-  fft_plan->is_batch_contiguous =
-      (fft_plan->idist == 1 && fft_plan->odist == 1);
+  printf("is_batch_contiguous\n");
+  fft_plan->is_batch_contiguous = 0;
+  // (fft_plan->idist == 1 && fft_plan->odist == 1);
 
   // std::cout<< "mluOpAllocateC2C1D"<<std::endl;
   mluOpAllocateC2C1D(handle, fft_plan, input_desc, output_desc, n[0]);
@@ -2134,10 +2175,13 @@ mluOpStatus_t MLUOP_WIN_API mluOpMakeFFTPlanMany(
     case CNFFT_COMPLEX_FLOAT2COMPLEX_FLOAT: {
       if (rank == 1) {
         if (fft_plan->prime == 0) {
+          printf("mluOpMakeFFTPlanC2C1D\n");
           status = mluOpMakeFFTPlanC2C1D(handle, fft_plan, input_desc,
                                          output_desc, rank, n);
 
         } else {
+          printf("makeFFT1dPolicy\n");
+
           status = makeFFT1dPolicy(handle, fft_plan);
         }
 

@@ -2050,7 +2050,7 @@ mluOpStatus_t execFFT1d(mluOpHandle_t handle, const mluOpFFTPlan_t fft_plan,
   } else {
     configureFFT1dWorkspaceAddrs_v2(handle, fft_plan, (void *)input, workspace,
                                     output);
-    if (!fft_plan->is_input_contiguous && !fft_plan->is_batch_contiguous) {
+    if (1) {
       status = makeFFT1dContiguousInput(handle, fft_plan, input,
                                         fft_plan->mlu_addrs.input);
       INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
@@ -2059,7 +2059,7 @@ mluOpStatus_t execFFT1d(mluOpHandle_t handle, const mluOpFFTPlan_t fft_plan,
     status = execFFTc2c1d(handle, fft_plan, scale_factor, direction);
     INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
 
-    if (!fft_plan->is_output_contiguous && !fft_plan->is_batch_contiguous) {
+    if (1) {
       status = makeFFT1dContiguousOutput(handle, fft_plan, output,
                                          fft_plan->mlu_addrs.output);
       INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
