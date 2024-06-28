@@ -546,8 +546,8 @@ mluOpStatus_t setIRFFT1dReserveArea(mluOpHandle_t handle,
 }
 
 mluOpStatus_t setIRFFT1dReserveArea_v2(mluOpHandle_t handle,
-                                     mluOpFFTPlan_t fft_plan,
-                                     const std::string api) {
+                                       mluOpFFTPlan_t fft_plan,
+                                       const std::string api) {
   mluOpStatus_t status = MLUOP_STATUS_SUCCESS;
 
   VLOG(5) << "Into configure IRFFT1d ReserveArea Addrs (zrg)";

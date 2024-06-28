@@ -936,7 +936,7 @@ __mlu_func__ void computeLargeButterflyFirststageBatchPingpong(
                       small_butterfly_num, para_num, small_in_stride, dir,
                       radix);
                 } else {
-                  // TODO(zrg):check 
+                  // TODO(zrg): check
                   computeGenericButterflyLaststageMat(
                       nram_para_store_pong,
                       nram_para_store_pong + max_para_ldst_num * large_radix,
@@ -1117,25 +1117,24 @@ __mlu_func__ void computeLargeButterflyOtherstages(
         int para_load_num = (max_para_ldst_num > (large_butterfly_num - i))
                                 ? (large_butterfly_num - i)
                                 : max_para_ldst_num;
-        if (para_load_num != 1) {
-          __memcpy_async(nram_para_load_in.r, input + Fin_stride + i,
-                         sizeof(DT) * para_load_num, GDRAM2NRAM,
-                         sizeof(DT) * para_load_num,
-                         large_in_stride * sizeof(DT), large_radix - 1);
-          __memcpy_async(nram_para_load_in.i, input + nfft + Fin_stride + i,
-                         sizeof(DT) * para_load_num, GDRAM2NRAM,
-                         sizeof(DT) * para_load_num,
-                         large_in_stride * sizeof(DT), large_radix - 1);
-          __memcpy_async(nram_para_load_tw.r, cur_large_twiddles + i,
-                         sizeof(DT) * para_load_num, SRAM2NRAM,
-                         sizeof(DT) * para_load_num,
-                         large_out_stride * sizeof(DT), large_radix - 2);
-          __memcpy_async(
-              nram_para_load_tw.i,
-              cur_large_twiddles + large_butterfly_num * (large_radix - 1) + i,
-              sizeof(DT) * para_load_num, SRAM2NRAM, sizeof(DT) * para_load_num,
-              large_out_stride * sizeof(DT), large_radix - 2);
-        }
+
+        __memcpy_async(nram_para_load_in.r, input + Fin_stride + i,
+                       sizeof(DT) * para_load_num, GDRAM2NRAM,
+                       sizeof(DT) * para_load_num, large_in_stride * sizeof(DT),
+                       large_radix - 1);
+        __memcpy_async(nram_para_load_in.i, input + nfft + Fin_stride + i,
+                       sizeof(DT) * para_load_num, GDRAM2NRAM,
+                       sizeof(DT) * para_load_num, large_in_stride * sizeof(DT),
+                       large_radix - 1);
+        __memcpy_async(nram_para_load_tw.r, cur_large_twiddles + i,
+                       sizeof(DT) * para_load_num, SRAM2NRAM,
+                       sizeof(DT) * para_load_num,
+                       large_out_stride * sizeof(DT), large_radix - 2);
+        __memcpy_async(
+            nram_para_load_tw.i,
+            cur_large_twiddles + large_butterfly_num * (large_radix - 1) + i,
+            sizeof(DT) * para_load_num, SRAM2NRAM, sizeof(DT) * para_load_num,
+            large_out_stride * sizeof(DT), large_radix - 2);
       }
 
       // pipeline: store-stage
@@ -1763,7 +1762,7 @@ __mlu_func__ void computeLargeButterflyOtherstagesBatchPingpong(
         // pipeline: load-stage
 
         if (repeat_id < repeat_num) {
-          if (para_num != 1) {
+          if (1) {
             __memcpy_async(
                 nram_para_load_in_ping.r,
                 input_batch + sec_count * large_butterfly_num + butterfly_id,

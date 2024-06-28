@@ -603,13 +603,13 @@ mluOpStatus_t MLUOP_WIN_API fftFactor(const int _n, int *facbuf,
         }
         break;
 
-        case (32 * 17):
-          if (n % 32 == 0) {
-            r = 32;
-          } else if ((n % 17) == 0) {
-            r = 17;
-          }
-          break;
+      case (32 * 17):
+        if (n % 32 == 0) {
+          r = 32;
+        } else if ((n % 17) == 0) {
+          r = 17;
+        }
+        break;
 
       case 600:
         if (n % 30 == 0) {
@@ -726,19 +726,19 @@ mluOpStatus_t MLUOP_WIN_API fftTwoStepFactor(mluOpFFTPlan_t fft_plan,
     if (is_row_major) {
       switch (_n) {
         case (32 * 17):
-            r = 32 * 17;
+          r = 32 * 17;
           break;
 
         case (200):
-            r = 200;
+          r = 200;
           break;
 
         case (600):
-            r = 600;
+          r = 600;
           break;
 
         case (256):
-            r = 256;
+          r = 256;
           break;
 
         case 1024:
@@ -868,7 +868,29 @@ mluOpStatus_t MLUOP_WIN_API fftTwoStepFactor(mluOpFFTPlan_t fft_plan,
       }
     }
     n /= r;
-    in_stride = _n / r;
+
+    switch (fft_plan->fft_type) {
+      // r2c
+      case CNFFT_HALF2COMPLEX_HALF:
+      case CNFFT_FLOAT2COMPLEX_FLOAT:
+      case CNFFT_COMPLEX_HALF2HALF:
+      case CNFFT_COMPLEX_FLOAT2FLOAT: {
+        if ((n * r) != _n) {
+          in_stride = (((out_stride / 2) + 1) * section_num) / r;
+
+        } else {
+          in_stride = _n / r;
+        }
+      }
+
+      case CNFFT_COMPLEX_HALF2COMPLEX_HALF:
+      case CNFFT_COMPLEX_FLOAT2COMPLEX_FLOAT: {
+        in_stride = _n / r;
+      }
+      default:
+        break;
+    }
+
     section_num = n;
     stage_num++;
 
@@ -991,7 +1013,7 @@ mluOpStatus_t MLUOP_WIN_API calParallelNumLowBound(mluOpFFTPlan_t fft_plan,
   switch (fft_plan->fft_type) {
     // r2c
     case CNFFT_HALF2COMPLEX_HALF:
-    case CNFFT_FLOAT2COMPLEX_FLOAT: 
+    case CNFFT_FLOAT2COMPLEX_FLOAT:
     case CNFFT_COMPLEX_HALF2HALF:
     case CNFFT_COMPLEX_FLOAT2FLOAT:
     case CNFFT_COMPLEX_HALF2COMPLEX_HALF:
@@ -2226,13 +2248,12 @@ mluOpStatus_t MLUOP_WIN_API mluOpSetFFTReserveArea(mluOpHandle_t handle,
     case CNFFT_COMPLEX_HALF2COMPLEX_HALF:
     case CNFFT_COMPLEX_FLOAT2COMPLEX_FLOAT: {
       if (fft_plan->rank == 1) {
-        if(fft_plan->prime) {
-        status = setFFT1dReserveArea(handle, fft_plan, api);
-        }else{
-status = setFFT1dReserveArea_v2(handle, fft_plan, api);
+        if (fft_plan->prime) {
+          status = setFFT1dReserveArea(handle, fft_plan, api);
+        } else {
+          status = setFFT1dReserveArea_v2(handle, fft_plan, api);
         }
 
-        
       } else if (fft_plan->rank == 2) {
         // status = setFFT1dReserveArea(handle, fft_plan, api);
         status = setFFT2dReserveArea(handle, fft_plan, api);
@@ -2244,10 +2265,10 @@ status = setFFT1dReserveArea_v2(handle, fft_plan, api);
     case CNFFT_COMPLEX_HALF2HALF:
     case CNFFT_COMPLEX_FLOAT2FLOAT: {
       if (fft_plan->rank == 1) {
-        if(fft_plan->prime) {
-        status = setIRFFT1dReserveArea(handle, fft_plan, api);
-        }else{
-status = setIRFFT1dReserveArea_v2(handle, fft_plan, api);
+        if (fft_plan->prime) {
+          status = setIRFFT1dReserveArea(handle, fft_plan, api);
+        } else {
+          status = setIRFFT1dReserveArea_v2(handle, fft_plan, api);
         }
       } else if (fft_plan->rank == 2) {
         // status = setFFT1dReserveArea(handle, fft_plan, api);
