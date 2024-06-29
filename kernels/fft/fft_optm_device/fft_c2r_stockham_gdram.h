@@ -227,10 +227,10 @@ __mlu_func__ void computeMutiStageOnchipC2R(DT *input, DT *output, int *factors,
       // MLULOG("other stage radix: %d \n", radix);
 
       if (repeat_num > 0 || taskId < remain_num) {
-        // computeLargeButterflyOtherstagesBatchPingpongC2R<DT>(
-        //     output, buffer, (DT *)twiddles, _twiddles, sram_dftmtx,
-        //     section_num, butterfly_num, in_stride, (void *)nram_buf,
-        //     small_factors, nfft, t_start, t_end, direction, 0);
+        computeLargeButterflyOtherstagesBatchPingpongC2R<DT>(
+            output, buffer, (DT *)twiddles, _twiddles, sram_dftmtx, section_num,
+            butterfly_num, out_stride, (void *)nram_buf, small_factors, nfft,
+            t_start, t_end, 0);
 
         printf("other stage_count: %d, radix: %d\n", stage_count, radix);
       }
