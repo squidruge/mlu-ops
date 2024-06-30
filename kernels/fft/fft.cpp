@@ -922,11 +922,14 @@ mluOpStatus_t MLUOP_WIN_API fftTwoStepFactor(mluOpFFTPlan_t fft_plan,
           in_stride = _n / r;
         }
       }
+      break;
 
       case CNFFT_COMPLEX_HALF2COMPLEX_HALF:
       case CNFFT_COMPLEX_FLOAT2COMPLEX_FLOAT: {
         in_stride = _n / r;
       }
+      break;
+
       default:
         break;
     }

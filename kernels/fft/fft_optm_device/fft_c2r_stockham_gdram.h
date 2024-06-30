@@ -80,7 +80,7 @@ __mlu_func__ void computeMutiStageOnchipC2R(DT *input, DT *output, int *factors,
   // first stage
   radix = factors[5 * _stage_count + 0];
   section_num = factors[5 * _stage_count + 1];
-  butterfly_num = factors[5 * _stage_count + 3];
+  butterfly_num = factors[5 * _stage_count + 2];
   out_stride = factors[5 * _stage_count + 3];
   in_stride = butterfly_num;
   small_factors_offset = factors[5 * _stage_count + 4];
