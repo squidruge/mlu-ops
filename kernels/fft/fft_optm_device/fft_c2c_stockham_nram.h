@@ -206,31 +206,11 @@ __mlu_func__ void computeLargeButterflyFirststage(
       int para_ldst_num = (max_para_ldst_num > (section_num - i))
                               ? (section_num - i)
                               : max_para_ldst_num;
-      // // [large_radix, para_ldst_num, 2] -> [para_ldst_num, 2, large_radix]
-      // __bang_transpose(nram_transpose_load, nram_para_load, large_radix,
-      //                  2 * para_ldst_num);
-
-      // [large_radix, para_ldst_num, 2] -> [2, para_ldst_num, large_radix]
-      // overlap nram_out_r
-      // DT *nram_transpose_load = nram_out_r;
-      // __bang_transpose(nram_transpose_load, nram_para_load,
-      //                  large_radix * para_ldst_num, 2);
-      // // [large_radix, para_ldst_num] -> [para_ldst_num, large_radix]
-      // __bang_transpose(nram_in_r, nram_transpose_load, large_radix,
-      //                  para_ldst_num);
-      // __bang_transpose(nram_in_i,
-      //                  nram_transpose_load + large_radix * para_ldst_num,
-      //                  large_radix, para_ldst_num);
 
       // DT *nram_transpose_load = nram_in_r;
       __bang_transpose(nram_in_r, nram_para_load, large_radix * para_ldst_num,
                        2);
       // [large_radix, para_ldst_num] -> [para_ldst_num, large_radix]
-      // __bang_transpose(nram_in_r, nram_transpose_load, large_radix,
-      //                  para_ldst_num);
-      // __bang_transpose(nram_in_i,
-      //                  nram_transpose_load + large_radix * para_ldst_num,
-      //                  large_radix, para_ldst_num);
 
       for (int compute_id = 0; compute_id < para_ldst_num;
            compute_id += para_ldst_num) {
@@ -449,36 +429,9 @@ __mlu_func__ void computeLargeButterflyFirststage(
                      nram_out_i, para_ldst_num * large_radix * sizeof(DT),
                      NRAM2NRAM);
           }
-
-          // if (last_stage) {
-          //   // MLULOG("last_stage. \n");
-
-          //   // __memcpy(nram_transpose_temp + (compute_id * 2) * large_radix,
-          //   //          nram_out_r, large_radix * sizeof(DT), NRAM2NRAM);
-          //   // __memcpy(nram_transpose_temp
-          //   // + (compute_id * 2 + 1) * large_radix,
-          //   //          nram_out_i, large_radix * sizeof(DT), NRAM2NRAM);
-
-          //   __memcpy(nram_transpose_temp + (compute_id * 2) * large_radix,
-          //            nram_out_r, large_radix * sizeof(DT) * 2, NRAM2NRAM);
-          //   __bang_transpose(
-          //       nram_para_store + (compute_id * 2) * large_radix,
-          //       nram_transpose_temp + (compute_id * 2) * large_radix, 2,
-          //       large_radix);
-
-          // } else {
-          //   // MLULOG("not last_stage. \n");
-          //   __memcpy(nram_para_store + compute_id * large_radix, nram_out_r,
-          //            large_radix * sizeof(DT), NRAM2NRAM);
-          //   __memcpy(nram_para_store +
-          //                (compute_id + max_para_ldst_num) * large_radix,
-          //            nram_out_i, large_radix * sizeof(DT), NRAM2NRAM);
-          // }
-          // MLULOG("last_stage. \n");
         }
       }
     }
-
     __sync();
   }
 }
