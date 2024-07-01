@@ -100,8 +100,6 @@ __mlu_func__ void computeLargeButterflyLaststageBatchPingpongC2R(
 
   const int lower_radix = large_radix - upper_radix;
 
-  printf("large_radix: %d, large_butterfly_num: %d\n", large_radix,
-         large_butterfly_num);
   for (int sec_id = 0; sec_id < large_butterfly_num; sec_id += max_para_num) {
     DT *output_batch = output;
     DT *input_batch = input;
@@ -1197,6 +1195,7 @@ __mlu_func__ void computeLargeButterflyFirststageBatchPingpongC2R(
 
   max_para_num = (large_butterfly_num < small_factors[3]) ? large_butterfly_num
                                                           : small_factors[3];
+
   // load compute store
   // (0)                              load 0 ping sync()
   // (1)              compute 0 ping  load 1 pong sync()

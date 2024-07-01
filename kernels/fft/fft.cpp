@@ -158,23 +158,65 @@ mluOpStatus_t MLUOP_WIN_API fftGenerateTwiddles(mluOpFFTPlan_t fft_plan,
     section_num = factors[5 * loop_stage + 1];
     butterfly_num = factors[5 * loop_stage + 2];
 
-    switch (fft_plan->fft_type) {
-      case CNFFT_HALF2COMPLEX_HALF:
-      case CNFFT_FLOAT2COMPLEX_FLOAT: {
-        // R2C
-      } break;
-      case CNFFT_COMPLEX_HALF2HALF:
-      case CNFFT_COMPLEX_FLOAT2FLOAT: {
-        // C2R
-        butterfly_num = butterfly_num / 2 + 1;
-      } break;
-      case CNFFT_COMPLEX_HALF2COMPLEX_HALF:
-      case CNFFT_COMPLEX_FLOAT2COMPLEX_FLOAT: {
-        // C2C
-      }; break;
-      default: {
-      }
-    }
+    fftGenerateTwiddlesLine<DT>(twiddles, butterfly_num, section_num,
+                                cur_large_radix, _nfft, dir);
+
+    twiddles += butterfly_num * (cur_large_radix - 1) * 2;
+    tw_offset += butterfly_num * (cur_large_radix - 1);
+  }  // stage_count
+
+  // do not ignore first stage
+  for (loop_stage = 1; loop_stage <= stage_count; loop_stage++) {
+    cur_large_radix = factors[5 * loop_stage];
+    small_factors_offset = factors[5 * loop_stage + 4];
+    small_stage_count = factors[small_factors_offset];
+    factors[small_factors_offset + 2] = tw_offset;
+    // cur_radix = factors[4 * loop_stage];
+    // section_num = factors[4 * loop_stage + 1];
+    // butterfly_num = factors[4 * loop_stage + 2];
+    // butterfly_num = factors[4 * loop_stage + 2];
+    // generator(twiddles, butterfly_num, section_num, cur_radix, _nfft, dir);
+    // twiddles += butterfly_num * (cur_radix - 1);
+
+    for (small_loop_stage = 2; small_loop_stage <= small_stage_count;
+         small_loop_stage++) {
+      cur_small_radix = factors[small_factors_offset + 4 * small_loop_stage];
+      section_num = factors[small_factors_offset + 4 * small_loop_stage + 1];
+      butterfly_num = factors[small_factors_offset + 4 * small_loop_stage + 2];
+      // butterfly_num = factors[small_factors_offset + 4 * small_loop_stage +
+      // 2];
+      fftGenerateTwiddlesLine<DT>(twiddles, butterfly_num, section_num,
+                                  cur_small_radix, cur_large_radix, dir);
+      twiddles += butterfly_num * (cur_small_radix - 1) * 2;
+      tw_offset +=
+          butterfly_num * (cur_small_radix - 1);  // complex element offset
+    }                                             // small_stage_count
+  }                                               // stage_count
+
+  _twiddles_end = (void *)((DT *)_twiddles + tw_offset * 2);
+  return MLUOP_STATUS_SUCCESS;
+}
+
+template <typename DT>
+mluOpStatus_t MLUOP_WIN_API fftGenerateTwiddlesC2R(
+    mluOpFFTPlan_t fft_plan, void *&_twiddles, void *&_twiddles_end,
+    int *factors, const int _nfft, const int dir) {
+  // twiddles = _twiddles;
+  DT *twiddles = new DT[_nfft * 2 * 2];  // complex *2(large+small)
+  _twiddles = twiddles;
+  int stage_count = factors[0];
+  int cur_large_radix, cur_small_radix, section_num, butterfly_num,
+      loop_stage;  // current radix
+  int tw_offset = 0;
+  int small_stage_count, small_loop_stage, small_factors_offset;
+
+  // for other stage, ignore first stage
+  for (loop_stage = 2; loop_stage <= stage_count; loop_stage++) {
+    cur_large_radix = factors[5 * loop_stage];
+    section_num = factors[5 * loop_stage + 1];
+    butterfly_num = factors[5 * loop_stage + 2];
+    butterfly_num = butterfly_num / 2 + 1;
+
     fftGenerateTwiddlesLine<DT>(twiddles, butterfly_num, section_num,
                                 cur_large_radix, _nfft, dir);
 
@@ -716,7 +758,8 @@ mluOpStatus_t MLUOP_WIN_API fftFactor(const int _n, int *facbuf,
 
 mluOpStatus_t MLUOP_WIN_API fftTwoStepFactor(mluOpFFTPlan_t fft_plan,
                                              const int _n, int *facbuf,
-                                             int is_row_major) {
+                                             int is_row_major,
+                                             const int factor_type) {
   int n = _n;
   // if ((facbuf == NULL) || (n <= 0))
   // {
@@ -739,13 +782,13 @@ mluOpStatus_t MLUOP_WIN_API fftTwoStepFactor(mluOpFFTPlan_t fft_plan,
           }
           break;
 
-        case ((13 * 17) * (13 * 17)* (13 * 17)):
+        case ((13 * 17) * (13 * 17) * (13 * 17)):
           if (n % (13 * 17) == 0) {
             r = (13 * 17);
           }
           break;
 
-        case ((25) * (25)* (25)):
+        case ((25) * (25) * (25)):
           if (n % (25) == 0) {
             r = (25);
           }
@@ -921,7 +964,7 @@ mluOpStatus_t MLUOP_WIN_API fftTwoStepFactor(mluOpFFTPlan_t fft_plan,
     }
     n /= r;
 
-    switch (fft_plan->fft_type) {
+    switch (factor_type) {
       // r2c
       case CNFFT_HALF2COMPLEX_HALF:
       case CNFFT_FLOAT2COMPLEX_FLOAT:
@@ -1448,73 +1491,38 @@ mluOpStatus_t MLUOP_WIN_API mluOpAllocateRFFT2D(
     const int _n0, const int _n1) {
   const std::string make_plan_api = "[mluOpAllocateRFFT2D]";
   size_t workspace_size = 0, reservespace_size = 0;
-  size_t CPX_TYPE_SIZE = 0, REAL_TYPE_SIZE = 0;
 
-  switch (fft_plan->fft_type) {
-    case CNFFT_HALF2COMPLEX_HALF:
-    case CNFFT_COMPLEX_HALF2HALF: {
-      REAL_TYPE_SIZE = 2;
-    } break;
-    case CNFFT_FLOAT2COMPLEX_FLOAT:
-    case CNFFT_COMPLEX_FLOAT2FLOAT: {
-      REAL_TYPE_SIZE = 4;
-    }; break;
-    default: {
-      LOG(ERROR) << make_plan_api << ": invalid r2c 2d fft type.";
-      return MLUOP_STATUS_BAD_PARAM;
-    }
-  }
-  CPX_TYPE_SIZE = REAL_TYPE_SIZE * 2;
+  mluOpDataType_t in_c_dtype = fft_plan->input_dtype;
+  size_t in_c_dtype_size = mluOpDataTypeBytes(in_c_dtype);
 
   int batch = fft_plan->batch;
+  // const int _n0 = fft_plan->n[0];
+  // const int _n1 = fft_plan->n[1];
 
-  size_t buffer_size = batch * sizeof(CPX_TYPE_SIZE) * _n0 * _n1;
+  size_t buffer_size = batch * in_c_dtype_size * _n0 * _n1;
 
-  workspace_size = buffer_size * 3;
-
-  // int padded_input_num = batch * n;
-  const int trans_dim_num = 3;
-  int trans_input_dims[trans_dim_num] = {fft_plan->n[0], fft_plan->n[1],
-                                         COMPLEX};
-  int trans_output_dims[trans_dim_num] = {fft_plan->n[1], fft_plan->n[0],
-                                          COMPLEX};
-  int trans_permute[trans_dim_num] = {1, 0, 2};
-  size_t trans_workspace_size;
-  mluOpStatus_t status = fftGetTransposeWorkspaceSize(
-      handle, trans_workspace_size, trans_dim_num, trans_input_dims,
-      trans_permute, fft_plan->input_dtype, make_plan_api);
-
-  workspace_size = (workspace_size > trans_workspace_size)
-                       ? workspace_size
-                       : trans_workspace_size;
-
-  status = fftGetTransposeWorkspaceSize(
-      handle, trans_workspace_size, trans_dim_num, trans_output_dims,
-      trans_permute, fft_plan->input_dtype, make_plan_api);
-
-  workspace_size = (workspace_size > trans_workspace_size)
-                       ? workspace_size
-                       : trans_workspace_size;
-
-  size_t twiddles_size = CPX_TYPE_SIZE * _n0;
-  size_t twiddles_size_2d = CPX_TYPE_SIZE * _n1;
+  size_t twiddles_size = in_c_dtype_size * _n0;
+  size_t twiddles_size_2d = in_c_dtype_size * _n1;
 
   if (fft_plan->fft_strategy == CNFFT_FUNC_MANY_DIST1_2D) {
-    reservespace_size =
-        CPX_TYPE_SIZE * _n0 * _n0 + CPX_TYPE_SIZE * _n1 * _n1; /* DFT matrix */
-    workspace_size = CPX_TYPE_SIZE * _n1 * _n0 * batch * 6;
+    reservespace_size = in_c_dtype_size * _n0 * _n0 +
+                        in_c_dtype_size * _n1 * _n1; /* DFT matrix */
+    workspace_size = in_c_dtype_size * _n1 * _n0 * batch * 6;
   } else if (fft_plan->fft_strategy == CNFFT_FUNC_TWO_LEVEL_STOCKHAM) {
     reservespace_size = sizeof(int) * (FFT_MAXFACTORS) /* factors */
-                        + sizeof(int) * (FFT_MAXFACTORS) + twiddles_size +
-                        DFT_TABLE_SIZE + twiddles_size_2d +
-                        DFT_TABLE_SIZE; /* twiddles */
+                        + sizeof(int) * (FFT_MAXFACTORS) + twiddles_size * 2 +
+                        DFT_TABLE_SIZE * 2 + twiddles_size_2d * 2 +
+                        DFT_TABLE_SIZE * 2; /* twiddles */
+    workspace_size = buffer_size * 2;
+    workspace_size += (fft_plan->is_input_contiguous) ? 0 : buffer_size;
+    workspace_size += (fft_plan->is_output_contiguous) ? 0 : buffer_size;
   }
 
   fft_plan->workspace_size = workspace_size;
   fft_plan->reservespace_size = reservespace_size;
 
   // printf("%ld, %ld\n\n", workspace_size, reservespace_size);
-  return status;
+  return MLUOP_STATUS_SUCCESS;
 }
 
 /**
@@ -1535,7 +1543,8 @@ mluOpStatus_t MLUOP_WIN_API mluOpMakeFFTPlanC2C1D(
   mluOpAllocateC2C1D(handle, fft_plan, input_desc, output_desc, n[0]);
   // std::cout<< "mluOpAllocateC2C1D"<<std::endl;
   int is_row_major = !fft_plan->is_batch_contiguous;
-  fftTwoStepFactor(fft_plan, n[0], fft_plan->factors, is_row_major);
+  fftTwoStepFactor(fft_plan, n[0], fft_plan->factors, is_row_major,
+                   fft_plan->fft_type);
 
   switch (fft_plan->fft_type) {
     case CNFFT_FLOAT2COMPLEX_FLOAT:
@@ -1605,13 +1614,14 @@ mluOpStatus_t MLUOP_WIN_API mluOpMakeFFTPlanC2R1D(
     const int rank, const int *n) {
   mluOpAllocateC2R1D(handle, fft_plan, input_desc, output_desc, n[0]);
   int is_row_major = 1;
-  fftTwoStepFactor(fft_plan, n[0], fft_plan->factors, is_row_major);
+  fftTwoStepFactor(fft_plan, n[0], fft_plan->factors, is_row_major,
+                   fft_plan->fft_type);
 
   switch (fft_plan->fft_type) {
     case CNFFT_COMPLEX_FLOAT2FLOAT:
-      fftGenerateTwiddles<float>(fft_plan, fft_plan->twiddles,
-                                 fft_plan->twiddles_end, fft_plan->factors,
-                                 n[0], FFT_BACKWARD);
+      fftGenerateTwiddlesC2R<float>(fft_plan, fft_plan->twiddles,
+                                    fft_plan->twiddles_end, fft_plan->factors,
+                                    n[0], FFT_BACKWARD);
       // for(int i=0; i< 32; i++) {
       //   printf("twiddles: %f\n", ((float*)(fft_plan->twiddles))[i]);
       // }
@@ -1619,9 +1629,9 @@ mluOpStatus_t MLUOP_WIN_API mluOpMakeFFTPlanC2R1D(
                                   FFT_BACKWARD);
       break;
     case CNFFT_COMPLEX_HALF2HALF:
-      fftGenerateTwiddles<float>(fft_plan, fft_plan->twiddles,
-                                 fft_plan->twiddles_end, fft_plan->factors,
-                                 n[0], FFT_BACKWARD);
+      fftGenerateTwiddlesC2R<float>(fft_plan, fft_plan->twiddles,
+                                    fft_plan->twiddles_end, fft_plan->factors,
+                                    n[0], FFT_BACKWARD);
 
       fftGenerateDftMatrix<float>(fft_plan->dft_matrix, fft_plan->factors, n[0],
                                   FFT_BACKWARD);
@@ -1688,8 +1698,9 @@ mluOpStatus_t MLUOP_WIN_API mluOpMakeFFTPlanC2C2D(
   }
 
   if (fft_plan->fft_strategy == CNFFT_FUNC_TWO_LEVEL_STOCKHAM) {
-    fftTwoStepFactor(fft_plan, n[1], fft_plan->factors, 1);
-    fftTwoStepFactor(fft_plan, n[0], fft_plan->factors_2d, 0);
+    fftTwoStepFactor(fft_plan, n[1], fft_plan->factors, 1, fft_plan->fft_type);
+    fftTwoStepFactor(fft_plan, n[0], fft_plan->factors_2d, 0,
+                     fft_plan->fft_type);
 
     switch (fft_plan->fft_type) {
       case CNFFT_FLOAT2COMPLEX_FLOAT:
@@ -1808,8 +1819,14 @@ mluOpStatus_t MLUOP_WIN_API mluOpMakeFFTPlanC2R2D(
     mluOpHandle_t handle, mluOpFFTPlan_t fft_plan,
     mluOpTensorDescriptor_t input_desc, mluOpTensorDescriptor_t output_desc,
     const int rank, const int *n) {
-  if (fft_plan->idist == 1 && fft_plan->odist == 1 &&
-      fft_plan->istride == fft_plan->batch) {
+  fft_plan->is_batch_contiguous =
+      (fft_plan->idist == 1 && fft_plan->odist == 1);
+
+  if (fft_plan->is_batch_contiguous && fft_plan->istride == fft_plan->batch &&
+      fft_plan->inembed[0] == fft_plan->n[0] &&
+      fft_plan->onembed[0] == fft_plan->n[0] &&
+      fft_plan->inembed[1] == fft_plan->n[1] / 2 + 1 &&
+      fft_plan->onembed[1] == fft_plan->n[1] / 2 + 1) {
     fft_plan->fft_strategy = CNFFT_FUNC_MANY_DIST1_2D;
   } else {
     fft_plan->fft_strategy = CNFFT_FUNC_TWO_LEVEL_STOCKHAM;
@@ -1841,9 +1858,61 @@ mluOpStatus_t MLUOP_WIN_API mluOpMakeFFTPlanC2R2D(
     }
   }
 
-  // if (fft_plan->fft_strategy == CNFFT_FUNC_TWO_LEVEL_STOCKHAM) {
-  // }
+  if (fft_plan->fft_strategy == CNFFT_FUNC_TWO_LEVEL_STOCKHAM) {
+    fftTwoStepFactor(fft_plan, n[1], fft_plan->factors, 1, fft_plan->fft_type);
+    fftTwoStepFactor(fft_plan, n[0], fft_plan->factors_2d, 0,
+                     CNFFT_COMPLEX_FLOAT2COMPLEX_FLOAT);
 
+    switch (fft_plan->fft_type) {
+      case CNFFT_FLOAT2COMPLEX_FLOAT:
+      case CNFFT_COMPLEX_FLOAT2FLOAT:
+      case CNFFT_COMPLEX_FLOAT2COMPLEX_FLOAT:
+
+        fftGenerateTwiddlesC2R<float>(fft_plan, fft_plan->twiddles,
+                                      fft_plan->twiddles_end, fft_plan->factors,
+                                      n[1], FFT_BACKWARD);
+        fftGenerateDftMatrix<float>(fft_plan->dft_matrix, fft_plan->factors,
+                                    n[1], FFT_BACKWARD);
+
+        fftGenerateTwiddlesColumn<float>(
+            fft_plan, fft_plan->twiddles_inv_2d, fft_plan->twiddles_inv_2d_end,
+            fft_plan->factors_2d, n[0], FFT_BACKWARD);
+        fftGenerateDftMatrix<float>(fft_plan->idft_matrix_2d,
+                                    fft_plan->factors_2d, n[0], FFT_BACKWARD);
+
+        break;
+      case CNFFT_HALF2COMPLEX_HALF:
+      case CNFFT_COMPLEX_HALF2HALF:
+      case CNFFT_COMPLEX_HALF2COMPLEX_HALF:
+        // TODO(zrg): need to copy twiddles to device, and convert to half.
+        // fftGenerateTwiddles<float>(fft_plan, fft_plan->twiddles,
+        //                            fft_plan->twiddles_end, fft_plan->factors,
+        //                            n[1], FFT_FORWARD);
+        // fftGenerateDftMatrix<float>(fft_plan->dft_matrix, fft_plan->factors,
+        //                             n[1], FFT_FORWARD);
+        // fftGenerateTwiddlesColumn<float>(
+        //     fft_plan, fft_plan->twiddles_2d, fft_plan->twiddles_2d_end,
+        //     fft_plan->factors_2d, n[0], FFT_FORWARD);
+        // fftGenerateDftMatrix<float>(fft_plan->dft_matrix_2d,
+        //                             fft_plan->factors_2d, n[0], FFT_FORWARD);
+
+        // fftGenerateTwiddles<float>(fft_plan, fft_plan->twiddles_inv,
+        //                            fft_plan->twiddles_inv_end,
+        //                            fft_plan->factors, n[1], FFT_BACKWARD);
+        // fftGenerateDftMatrix<float>(fft_plan->idft_matrix, fft_plan->factors,
+        //                             n[1], FFT_BACKWARD);
+        // fftGenerateTwiddlesColumn<float>(
+        //     fft_plan, fft_plan->twiddles_inv_2d,
+        //     fft_plan->twiddles_inv_2d_end, fft_plan->factors_2d, n[0],
+        //     FFT_BACKWARD);
+        // fftGenerateDftMatrix<float>(fft_plan->idft_matrix_2d,
+        //                             fft_plan->factors_2d, n[0],
+        //                             FFT_BACKWARD);
+        break;
+      default:
+        break;
+    }
+  }
   return MLUOP_STATUS_SUCCESS;
 }
 
