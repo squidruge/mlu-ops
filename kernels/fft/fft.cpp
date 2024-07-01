@@ -729,13 +729,25 @@ mluOpStatus_t MLUOP_WIN_API fftTwoStepFactor(mluOpFFTPlan_t fft_plan,
 
   int large_radix = 1;
   int small_factors_offset = 22 * 5;
-
+  // is_row_major = 0;
   while (n > 1) {
     if (is_row_major) {
       switch (_n) {
         case ((32 * 17) * (32 * 17)):
           if (n % (32 * 17) == 0) {
             r = (32 * 17);
+          }
+          break;
+
+        case ((13 * 17) * (13 * 17)* (13 * 17)):
+          if (n % (13 * 17) == 0) {
+            r = (13 * 17);
+          }
+          break;
+
+        case ((25) * (25)* (25)):
+          if (n % (25) == 0) {
+            r = (25);
           }
           break;
 
@@ -921,14 +933,12 @@ mluOpStatus_t MLUOP_WIN_API fftTwoStepFactor(mluOpFFTPlan_t fft_plan,
         } else {
           in_stride = _n / r;
         }
-      }
-      break;
+      } break;
 
       case CNFFT_COMPLEX_HALF2COMPLEX_HALF:
       case CNFFT_COMPLEX_FLOAT2COMPLEX_FLOAT: {
         in_stride = _n / r;
-      }
-      break;
+      } break;
 
       default:
         break;
