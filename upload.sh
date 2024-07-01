@@ -2,7 +2,7 @@
 
 # 添加文件到暂存区
 echo "[status]Adding files to staging area..."
-if git add kernels/fft; then
+if git add .; then
     echo "[message]Files added successfully."
 else
     echo "[message]Failed to add files." >&2
