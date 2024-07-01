@@ -97,6 +97,7 @@ void FftExecutor::cpuCompute() {
   // TODO(sunhui): use fftw? librosa? OTFFT? other thrid-party library.
   // auto batch = parser_->getInputDataCount(0);
   auto count = parser_->getInputDataCount(0);
+
   // printf("\n\n\nbatch: %ld, count: %ld\n\n\n", batch, count);
   // cpu_fp32_output_[0][i] = (cpu_fp32_input_[0][i]);
 
@@ -466,9 +467,11 @@ void FftExecutor::cpuCompute() {
 
 #endif
 
-#if TEST_C2C1D_STRIDE_FP32
-
-  fftwf_plan fft;
+#if TEST_C2R1D_FP32
+  auto outCount = parser_->getOutputDataCount(0);
+  auto size = count / 32;
+  auto size_out = outCount/32;
+  fftwf_plan irfft;
 
   fftwf_complex *fftw_out = ((fftwf_complex *)cpu_fp32_output_[0]);
   fftwf_complex *fftw_in = ((fftwf_complex *)cpu_fp32_input_[0]);
