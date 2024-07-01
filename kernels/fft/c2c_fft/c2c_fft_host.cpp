@@ -986,8 +986,6 @@ static void configureFFT1dWorkspaceAddrs_v2(mluOpHandle_t handle,
   }
 }
 
-
-
 static void configureFFT2dWorkspaceAddrs(mluOpHandle_t handle,
                                          mluOpFFTPlan_t fft_plan, void *input,
                                          void *workspace, void *output) {
@@ -1751,6 +1749,57 @@ static mluOpStatus_t makeFFT1dContiguousOutput(mluOpHandle_t handle,
   return status;
 }
 
+static mluOpStatus_t makeFFT2dContiguousOutput(mluOpHandle_t handle,
+                                               mluOpFFTPlan_t fft_plan,
+                                               void *output,
+                                               void *output_contiguous) {
+  std::string api = "[mluOpExecFFT]";
+  VLOG(5) << "into makeFFT2dContiguousOutput";
+  mluOpStatus_t status = MLUOP_STATUS_SUCCESS;
+  if (!fft_plan->is_output_contiguous) {
+    VLOG(5) << "launch copy with stride";
+    mluOpDataType_t out_c_dtype = fft_plan->output_dtype;
+    // create tensor desc
+    mluOpTensorDescriptor_t copy_src_desc, copy_dst_desc;
+    status = mluOpCreateTensorDescriptor(&copy_src_desc);
+    INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
+    status = mluOpCreateTensorDescriptor(&copy_dst_desc);
+    INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
+
+    // set up tensor desc
+    const int out_dim_num = 3;
+    int64_t dims[out_dim_num] = {fft_plan->batch, fft_plan->onembed[0],
+                                 fft_plan->onembed[1]};
+    int64_t strides[out_dim_num] = {fft_plan->odist,
+                                    fft_plan->ostride * fft_plan->onembed[1],
+                                    fft_plan->ostride};
+    status = mluOpSetTensorDescriptor_v2(copy_src_desc, MLUOP_LAYOUT_ARRAY,
+                                         out_c_dtype, out_dim_num, dims);
+    INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
+    status =
+        mluOpSetTensorDescriptorEx_v2(copy_dst_desc, MLUOP_LAYOUT_ARRAY,
+                                      out_c_dtype, out_dim_num, dims, strides);
+    INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
+
+    // void *copy_src_addr = fft_plan->matmul_addrs.output_contiguous_addr;
+    void *copy_src_addr = output_contiguous;
+    DEFINE_CREATE_AND_SET_CNNL_HANDLE(handle,
+                                      cnnl_handle);  // convert to cnnl_handle
+    // convert to cnnl_tensor_descriptor
+    DEFINE_CREATE_AND_SET_CNNL_TENSOR_DESCRIPTOR(copy_src_desc,
+                                                 cnnl_copy_src_desc);
+    DEFINE_CREATE_AND_SET_CNNL_TENSOR_DESCRIPTOR(copy_dst_desc,
+                                                 cnnl_copy_dst_desc);
+
+    CALL_CNNL(cnnlCopy(cnnl_handle, cnnl_copy_src_desc, copy_src_addr,
+                       cnnl_copy_dst_desc, output));
+
+    DESTROY_CNNL_TENSOR_DESCRIPTOR(cnnl_copy_src_desc);
+    DESTROY_CNNL_TENSOR_DESCRIPTOR(cnnl_copy_dst_desc);
+    DESTROY_CNNL_HANDLE(cnnl_handle);
+  }
+  return status;
+}
 
 mluOpStatus_t execFFTc2c1d(mluOpHandle_t handle, mluOpFFTPlan_t fft_plan,
                            const float scale_factor, int direction) {
@@ -1772,7 +1821,6 @@ mluOpStatus_t execFFTc2c1d(mluOpHandle_t handle, mluOpFFTPlan_t fft_plan,
 
   return status;
 }
-
 
 mluOpStatus_t execFFTc2c2d(mluOpHandle_t handle, mluOpFFTPlan_t fft_plan,
                            const float scale_factor, int direction) {
@@ -1859,8 +1907,6 @@ mluOpStatus_t execFFTr2c2d(mluOpHandle_t handle, mluOpFFTPlan_t fft_plan,
   return status;
 }
 
-
-
 mluOpStatus_t execFFT1d(mluOpHandle_t handle, const mluOpFFTPlan_t fft_plan,
                         const void *input, const float scale_factor,
                         void *workspace, void *output, int direction) {
@@ -1902,24 +1948,20 @@ mluOpStatus_t execFFT1d(mluOpHandle_t handle, const mluOpFFTPlan_t fft_plan,
     configureFFT1dWorkspaceAddrs_v2(handle, fft_plan, (void *)input, workspace,
                                     output);
 
-      status = makeFFT1dContiguousInput(handle, fft_plan, input,
-                                        fft_plan->mlu_addrs.input);
-      INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
-
+    status = makeFFT1dContiguousInput(handle, fft_plan, input,
+                                      fft_plan->mlu_addrs.input);
+    INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
 
     status = execFFTc2c1d(handle, fft_plan, scale_factor, direction);
     INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
 
-
-      status = makeFFT1dContiguousOutput(handle, fft_plan, output,
-                                         fft_plan->mlu_addrs.output);
-      INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
-
+    status = makeFFT1dContiguousOutput(handle, fft_plan, output,
+                                       fft_plan->mlu_addrs.output);
+    INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
   }
 
   return status;
 }
-
 
 mluOpStatus_t execFFT2d(mluOpHandle_t handle, const mluOpFFTPlan_t fft_plan,
                         const void *input, const float scale_factor,
@@ -2198,6 +2240,3 @@ mluOpStatus_t computeFFT2dMatMulRow(mluOpHandle_t handle,
 
   return status;
 }
-
-
-

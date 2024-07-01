@@ -1826,8 +1826,8 @@ mluOpStatus_t MLUOP_WIN_API mluOpMakeFFTPlanC2R2D(
       fft_plan->inembed[0] == fft_plan->n[0] &&
       fft_plan->onembed[0] == fft_plan->n[0] &&
       fft_plan->inembed[1] == fft_plan->n[1] / 2 + 1 &&
-      fft_plan->onembed[1] == fft_plan->n[1] / 2 + 1 && 
-      fft_plan->n[1] < 1000 && fft_plan->n[0] < 1000) {
+      fft_plan->onembed[1] == fft_plan->n[1] / 2 + 1 && fft_plan->n[1] < 1000 &&
+      fft_plan->n[0] < 1000) {
     fft_plan->fft_strategy = CNFFT_FUNC_MANY_DIST1_2D;
   } else {
     fft_plan->fft_strategy = CNFFT_FUNC_TWO_LEVEL_STOCKHAM;
@@ -2514,11 +2514,11 @@ mluOpStatus_t MLUOP_WIN_API mluOpExecFFT(
         status = MLUOP_STATUS_BAD_PARAM;
       }
       if (fft_plan->rank == 1) {
-        status = execIRFFT1d(handle, fft_plan, input, scale_factor,
-                                workspace, output);
+        status = execIRFFT1d(handle, fft_plan, input, scale_factor, workspace,
+                             output);
       } else if (fft_plan->rank == 2) {
         status = execIRFFT2d(handle, fft_plan, input, scale_factor, workspace,
-                           output);
+                             output);
       } else if (fft_plan->rank == 3) {
         // TODO(who)
         status = MLUOP_STATUS_NOT_SUPPORTED;
