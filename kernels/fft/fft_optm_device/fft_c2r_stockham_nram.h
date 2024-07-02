@@ -256,12 +256,6 @@ __mlu_func__ void computeLargeButterflyLaststageBatchPingpongC2R(
           FFT_SWAP_PTR(nram_out_r, nram_in_r);
           FFT_SWAP_PTR(nram_out_i, nram_in_i);
 
-          // DT *trans_r = (DT *)nram_buf + nram_buf_offset;
-          // nram_buf_offset += large_radix * max_para_num;
-
-          // DT *nram_out_i = (DT *)nram_buf + nram_buf_offset;
-          // nram_buf_offset += large_radix * max_para_num;
-
           TRANSPOSE_XYZ2YXZ_PAIR(nram_out_r, nram_out_i, nram_in_r, nram_in_i,
                                  small_section_num, para_num, radix, DT)
 
@@ -307,8 +301,6 @@ __mlu_func__ void computeLargeButterflyLaststageBatchPingpongC2R(
 
             switch (radix) {
               default:
-                // computeGenericButterflyOtherstages(Fout, buffer, twiddles,
-                // radix, section_num, butterfly_num, in_stride, 0, dir);
                 MLULOG("computeGenericButterflyOtherstagesMat: %d.\n", radix);
                 computeGenericButterflyOtherstagesMat(
                     nram_out_r, nram_out_i, nram_in_r, nram_in_i, nram_scratch,
@@ -320,7 +312,6 @@ __mlu_func__ void computeLargeButterflyLaststageBatchPingpongC2R(
             nram_tw += small_butterfly_num * (radix - 1) * 2;
           }  // for (stage_count)
 
-          // MLULOG("butterfly id: %d\n", i);
           // last stage
           {
             FFT_SWAP_PTR(nram_out_r, nram_in_r);
@@ -335,11 +326,6 @@ __mlu_func__ void computeLargeButterflyLaststageBatchPingpongC2R(
             small_butterfly_num = small_factors[value_mul++];
             small_in_stride = small_factors[value_mul];
 
-            // if (compute_id == 0 && repeat_id == 1 && 0) {
-            //   __memcpy(nram_tw, small_twiddles,
-            //            small_butterfly_num * (radix - 1) * sizeof(DT) * 2,
-            //            GDRAM2NRAM);
-            // }
             if (ld_dft_radix[0] != radix && ld_dft_radix[1] != radix) {
               ld_dft_radix[1] = ld_dft_radix[0];
               FFT_SWAP_PTR(nram_dftmtx[0], nram_dftmtx[1]);
@@ -365,10 +351,6 @@ __mlu_func__ void computeLargeButterflyLaststageBatchPingpongC2R(
 
             switch (radix) {
               default: {
-                // if (nram_in_r == nram_para_store_pong) {
-                //   FFT_SWAP_PTR(nram_para_store_pong, nram_para_load_pong);
-                // }
-
                 computeGenericButterflyLaststageMat(
                     nram_out_r, nram_out_i, nram_in_r, nram_in_i, nram_scratch,
                     nram_dftmtx[0], nram_tw, small_section_num,
@@ -455,8 +437,6 @@ __mlu_func__ void computeLargeButterflyOtherstagesBatchPingpongC2R(
       (DT *)nram_buf + nram_buf_offset + large_radix * max_para_num};
   nram_buf_offset += large_radix * max_para_num * 2;  // complex
 
-  // nram_buf_offset += large_radix * max_para_num * 2;  // complex
-
   DT *_nram_tw = (DT *)nram_buf + nram_buf_offset;
   nram_buf_offset += large_radix * 2;  // complex
 
@@ -496,7 +476,6 @@ __mlu_func__ void computeLargeButterflyOtherstagesBatchPingpongC2R(
   // size: (large_radix - 1) * max_para_num
   // int Fin_stride = 0, Fout_stride = 0;
   int sec_count;
-  // int repeat_num =
 
   int repeat_num = (t_end - t_start);
   const int odist = nfft << 1;
@@ -764,11 +743,6 @@ __mlu_func__ void computeLargeButterflyOtherstagesBatchPingpongC2R(
               nram_tw += small_butterfly_num * (radix - 1) * 2;
             }  // for (stage_count)
 
-            //           for (int j = 0; j < large_radix; j++) {
-            //   MLULOG("output i: (%f, %f).\n", nram_out_r[j], nram_out_i[j]);
-            // }
-
-            // MLULOG("butterfly id: %d\n", i);
             // last stage
             {
               FFT_SWAP_PTR(nram_out_r, nram_in_r);
@@ -804,23 +778,7 @@ __mlu_func__ void computeLargeButterflyOtherstagesBatchPingpongC2R(
                 }
               }
               switch (radix) {
-                // case 2:
-                //   break;
-                // case 3:
-                //   computeRadix3ButterflyLaststage(
-                //       nram_out_r, nram_out_i, nram_in_r, nram_in_i,
-                //       nram_scratch, nram_tw, small_section_num,
-                //       small_butterfly_num, small_in_stride, dir);
-                //   break;
-                // case 9:
-                //   computeRadix9ButterflyLaststage(
-                //       nram_out_r, nram_out_i, nram_in_r, nram_in_i,
-                //       nram_scratch, nram_tw, small_section_num,
-                //       small_butterfly_num, small_in_stride, dir);
-                //   break;
                 default:
-                  // computeGenericButterflyLaststage(Fout, buffer, twiddles,
-                  // radix, section_num, butterfly_num, in_stride, 0, dir);
                   computeGenericButterflyLaststageMat(
                       nram_out_r, nram_out_i, nram_in_r, nram_in_i,
                       nram_scratch, nram_dftmtx, nram_tw, small_section_num,
@@ -988,9 +946,6 @@ __mlu_func__ void computeLargeButterflyFirststageBatchPingpongC2R(
       if (repeat_id < repeat_num) {
         // [para_num][radix/2+1] -> [radix/2+1][para_num]
 
-        // __memcpy_async(nram_para_load_ping, input_batch,
-        //                sizeof(DT) * 2 * (large_radix / 2 + 1), GDRAM2NRAM);
-
         __memcpy_async(nram_para_load_ping, input_batch + butterfly_id * 2,
                        sizeof(DT) * 2 * para_num, GDRAM2NRAM,
                        sizeof(DT) * 2 * para_num,
@@ -1130,10 +1085,7 @@ __mlu_func__ void computeLargeButterflyFirststageBatchPingpongC2R(
 
               if (nram_out_r == nram_para_store_pong) {
                 FFT_SWAP_PTR(nram_para_load_pong, nram_para_store_pong)
-                // __bang_transpose(nram_para_store_pong, nram_out_r, para_num,
-                // large_radix)
               }
-              // TODO(zrg): redundant move
               __bang_transpose(nram_para_store_pong, nram_out_r, para_num,
                                large_radix);
               __bang_transpose(nram_para_store_pong + para_num * large_radix,
@@ -1211,9 +1163,6 @@ __mlu_func__ void computeLargeButterflyFirststageBatchPingpongC2R(
 
             switch (radix) {
               default:
-                // computeGenericButterflyOtherstages(Fout, buffer, twiddles,
-                // radix, section_num, butterfly_num, in_stride, 0, dir);
-                MLULOG("computeGenericButterflyOtherstagesMat: %d.\n", radix);
                 computeGenericButterflyOtherstagesMat(
                     nram_out_r, nram_out_i, nram_in_r, nram_in_i, nram_scratch,
                     nram_dftmtx[0], nram_tw, small_section_num,
@@ -1238,11 +1187,6 @@ __mlu_func__ void computeLargeButterflyFirststageBatchPingpongC2R(
             small_butterfly_num = small_factors[value_mul++];
             small_in_stride = small_factors[value_mul];
 
-            // if (compute_id == 0 && repeat_id == 1 && 0) {
-            //   __memcpy(nram_tw, small_twiddles,
-            //            small_butterfly_num * (radix - 1) * sizeof(DT) * 2,
-            //            GDRAM2NRAM);
-            // }
             if (ld_dft_radix[0] != radix && ld_dft_radix[1] != radix) {
               ld_dft_radix[1] = ld_dft_radix[0];
               FFT_SWAP_PTR(nram_dftmtx[0], nram_dftmtx[1]);
@@ -1269,10 +1213,6 @@ __mlu_func__ void computeLargeButterflyFirststageBatchPingpongC2R(
             switch (radix) {
               default:
                 if (last_stage) {
-                  // if (nram_in_r == nram_para_store_pong) {
-                  //   FFT_SWAP_PTR(nram_para_store_pong, nram_para_load_pong);
-                  // }
-
                   computeGenericButterflyLaststageMat(
                       nram_para_store_pong, nram_out_i, nram_in_r, nram_in_i,
                       nram_scratch, nram_dftmtx[0], nram_tw, small_section_num,
