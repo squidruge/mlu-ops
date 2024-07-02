@@ -82,8 +82,6 @@ __mlu_func__ void computeMutiStageOnchip(DT *input, DT *output, int *factors,
   in_stride = factors[5 + 3];
   small_factors_offset = factors[5 + 4];
 
-  // small_factors = factors + small_factors_offset;
-
   stage_count = _stage_count;
   last_stage = (stage_count == 1);
 
@@ -119,7 +117,6 @@ __mlu_func__ void computeMutiStageOnchip(DT *input, DT *output, int *factors,
         }
       }
     }
-    // factors = sram_factors;
   }
 
   __sync_cluster();
@@ -148,19 +145,13 @@ __mlu_func__ void computeMutiStageOnchip(DT *input, DT *output, int *factors,
     //            input -> buffer -> output -> buffer -> odd_extra_buffer ->
     //            output (5 stage)
 
-    // _stage_count = stage_count;
-
     if (_stage_count != 1) FFT_SWAP_PTR(buffer, output);
     small_factors = factors + small_factors_offset;
     if (repeat_num > 0 || taskId < remain_num) {
       if (0) {
         for (int t = t_start; t < t_end; t++) {
-          // MLULOG("taskId: %d, batchId: %d\n", taskId, t);
           DT *input_batch = input + t * (nfft << 1);
           DT *output_batch = output + t * (nfft << 1);
-
-          // DT *buffer_batch = buffer + t * (nfft * 2);
-          // DT *odd_extra_buffer_batch = odd_extra_buffer + t * (nfft * 2);
 
           // first stage
 
@@ -170,7 +161,6 @@ __mlu_func__ void computeMutiStageOnchip(DT *input, DT *output, int *factors,
               last_stage);
         }
       } else {
-        // printf("computeLargeButterflyFirststageBatchPingpong\n");
         computeLargeButterflyFirststageBatchPingpong<DT>(
             output, input, in_stride, section_num, twiddles, sram_dftmtx,
             (void *)nram_buf, small_factors, direction, nfft, last_stage,
@@ -184,37 +174,18 @@ __mlu_func__ void computeMutiStageOnchip(DT *input, DT *output, int *factors,
   // sram_large_tw
   stage_count--;
   if (stage_count == 0) {
-    // continue;
     return;
   }
-
-  // if (__is_mpu()) {
-  //   return;
-  // }
 
   // sram_large_tw
   value_mul = 10;
   for (; stage_count > 1; stage_count--) {
-    // fft_swap_ptr<DT>(&buffer, &output);
-    // FFT_SWAP_PTR(buffer, output);
     FFT_SWAP_PTR(buffer, output);
-
-    // if (is_two_stages && is_in_place) {
-    //   if (_stage_count % 2 == 0) {
-    //     if ((_stage_count - stage_count) == 2)
-    //       fft_swap_ptr<DT>(&odd_extra_buffer, &output);
-    //   } else {
-    //     if ((_stage_count - stage_count) == 3)
-    //       fft_swap_ptr<DT>(&odd_extra_buffer, &output);
-    //   }
-    // }
 
     if (stage_count == 2 && _stage_count % 2) {
       // fft_swap_ptr<DT>(&odd_extra_buffer, &output);
       FFT_SWAP_PTR(odd_extra_buffer, output);
     }
-
-    // value_mul = (_stage_count - stage_count + 1) * 5;
 
     // update parameter
     radix = factors[value_mul++];
@@ -226,8 +197,6 @@ __mlu_func__ void computeMutiStageOnchip(DT *input, DT *output, int *factors,
     small_factors = factors + small_factors_offset;
 
     if (__is_ipu()) {
-      // MLULOG("other stage radix: %d \n", radix);
-
       if (repeat_num > 0 || taskId < remain_num) {
         if (6000 / radix > repeat_num && 0) {
           for (int t = t_start; t < t_end; t++) {
@@ -252,8 +221,6 @@ __mlu_func__ void computeMutiStageOnchip(DT *input, DT *output, int *factors,
     twiddles += butterfly_num * (radix - 1) * 2;  // 2 for complex
   }                                               // for (stage_count)
 
-  // __mlu_shared__ DT *sram_tw[2048];  // radix-1024
-  // __mlu_shared__ DT *sram_tw[64];  // radix-1024
   // last stage
   {
     if ((_stage_count % 2 == 1)) {
@@ -324,10 +291,7 @@ __mlu_func__ void computeMutiStageOnchipColumn(DT *input, DT *output,
 
   int radix, section_num, butterfly_num, in_stride, stage_count, value_mul,
       small_factors_offset;
-  // const int is_two_stages = (stage_count == 2);  // the variable for
-  // twostages
-  // const int is_in_place = (input == output);
-  // const DT *_twiddles = twiddles;
+
   int *small_factors;
   int last_stage;
   __nram__ int nram_factors[FFT_MAXFACTORS];
@@ -404,15 +368,10 @@ __mlu_func__ void computeMutiStageOnchipColumn(DT *input, DT *output,
   DT *_twiddles = twiddles;
 
   DT *odd_extra_buffer;
-  // TODO(zrg): find largest radix, 6000/ largest
-  // int max_para_batch = (6144 / radix) > batch ? batch : (6144 / radix);
+
   int max_para_batch;
 
-  //  int max_para_batch = 6000/64;
-
   if (__is_ipu()) {
-    // FFT_CPX_T<DT> *odd_extra_buffer = (FFT_CPX_T<DT> *)buffer + batch * nfft;
-    // // for in_place temp buffer
     odd_extra_buffer =
         buffer + batch * (nfft << 1);  // for in_place temp buffer
     // out_place: input -> output (1 stage)
@@ -421,8 +380,6 @@ __mlu_func__ void computeMutiStageOnchipColumn(DT *input, DT *output,
     //            input -> buffer -> output -> buffer -> output (4 stage)
     //            input -> buffer -> output -> buffer -> odd_extra_buffer ->
     //            output (5 stage)
-
-    // _stage_count = stage_count;
 
     if (_stage_count != 1) FFT_SWAP_PTR(buffer, output);
 
@@ -461,13 +418,6 @@ __mlu_func__ void computeMutiStageOnchipColumn(DT *input, DT *output,
         } else {
           output_batch = output + t * nfft * 2;
         }
-        // DT *buffer_batch = buffer + t * (nfft * 2);
-        // DT *odd_extra_buffer_batch = odd_extra_buffer + t * (nfft * 2);
-
-        // first stage
-        // int radix
-
-        // MLULOG("para_batch: %d\n", para_batch);
 
         computeLargeButterflyFirststageColumn<DT>(
             output_batch, input_batch, in_stride, section_num, twiddles,
@@ -510,26 +460,10 @@ __mlu_func__ void computeMutiStageOnchipColumn(DT *input, DT *output,
     small_factors = factors + small_factors_offset;
 
     if (__is_ipu()) {
-      // MLULOG("other stage radix: %d \n", radix);
-      // int max_para_batch = (6000 + radix - 1) / radix;
       if (repeat_num > 0 || taskId < remain_num) {
-        // for (int t = t_start; t < t_end; t++) {
-        //   // DT *output_batch = output + t * 2;
-        //   // DT *buffer_batch = buffer + t * 2;
-
-        //     computeLargeButterflyOtherstagesColumn<DT>(
-        //         output_batch, buffer_batch, (DT *)twiddles, _twiddles,
-        //         sram_dftmtx, section_num, butterfly_num, in_stride,
-        //         (void *)nram_buf, small_factors, nfft, direction, 0,
-        //         last_stage, para_batch, nb0, nb1);
-        // }
-
         for (int t = t_start; t < t_end; t += max_para_batch) {
-          // MLULOG("taskId: %d, batchId: %d\n", taskId, t);
           DT *output_batch = output + t * (nfft * 2);
           DT *buffer_batch = buffer + t * (nfft * 2);
-          // DT *buffer_batch = buffer + t * (nfft * 2);
-          // DT *odd_extra_buffer_batch = odd_extra_buffer + t * (nfft * 2);
 
           // first stage
           // int radix
@@ -547,15 +481,12 @@ __mlu_func__ void computeMutiStageOnchipColumn(DT *input, DT *output,
     twiddles += butterfly_num * (radix - 1) * 2;  // 2 for complex
   }                                               // for (stage_count)
 
-  // __mlu_shared__ DT *sram_tw[2048];  // radix-1024
-  // __mlu_shared__ DT *sram_tw[64];  // radix-1024
   // last stage
   {
     if ((_stage_count % 2 == 1)) {
       FFT_SWAP_PTR(odd_extra_buffer, buffer);
     }
 
-    // fft_swap_ptr<DT>(&buffer, &output);
     FFT_SWAP_PTR(buffer, output);
 
     // update parameter
@@ -567,47 +498,15 @@ __mlu_func__ void computeMutiStageOnchipColumn(DT *input, DT *output,
 
     small_factors = factors + small_factors_offset;
 
-    // DT * sram_la = sram_large_tw
-
-    // if (__is_mpu()) {
-    //   __memcpy(sram_tw, twiddles, sizeof(DT) * 2 * butterfly_num * (radix -
-    //   1),
-    //            GDRAM2SRAM);
-    // }
-
-    // __sync_cluster();
-    // // imag
-    // __memcpy(
-    //     sram_large_tw + butterfly_num * (radix - 1),
-    //     twiddles + + butterfly_num * (radix - 1),
-    //     sizeof(DT) * para_ldst_num, GDRAM2NRAM,
-    //     sizeof(DT) * para_ldst_num, large_out_stride * sizeof(DT),
-    //     large_radix - 2);
-
     if (__is_ipu()) {
       MLULOG("last stage radix: %d, section_num: %d\n", radix, section_num);
 
       if (repeat_num > 0 || taskId < remain_num) {
-        // for (int t = t_start; t < t_end; t++) {
-        //   DT *output_batch = output + t * (nfft << 1);
-        //   DT *buffer_batch = buffer + t * (nfft << 1);
-
-        //   computeLargeButterflyLaststageColumn<DT>(
-        //       output_batch, buffer_batch, (DT *)twiddles, _twiddles,
-        //       sram_dftmtx, section_num, butterfly_num, in_stride,
-        //       (void *)nram_buf, small_factors, nfft, direction,
-        //       last_stage, para_batch, nb0, nb1);
-        // }
-        // int max_para_batch = (6000 + radix - 1) / radix;
         for (int t = t_start; t < t_end; t += max_para_batch) {
-          // MLULOG("taskId: %d, batchId: %d\n", taskId, t);
           DT *output_batch = output + t * 2;
           DT *buffer_batch = buffer + t * (nfft * 2);
-          // DT *buffer_batch = buffer + t * (nfft * 2);
-          // DT *odd_extra_buffer_batch = odd_extra_buffer + t * (nfft * 2);
 
           // first stage
-          // int radix
           int para_batch =
               (max_para_batch < (t_end - t)) ? max_para_batch : (t_end - t);
 
