@@ -62,6 +62,14 @@ __mlu_func__ void computeMutiStageOnchip(DT *input, DT *output, int *factors,
 
   __nram__ int nram_factors[FFT_MAXFACTORS];
 
+  // int sram_offset = 0;
+  // int *sram_factors = (int *)(sram_buffer + sram_offset);
+  // sram_offset += FFT_MAXFACTORS * sizeof(int);
+  // DT *sram_dftmtx = (DT *)(sram_buffer + sram_offset);
+  // sram_offset += DFT_TABLE_SIZE * sizeof(DT);
+  // DT *sram_twiddles = (DT *)(sram_buffer + sram_offset);
+  // const int twiddles_size = twiddles_end - twiddles;
+
   int sram_offset = 0;
   int *sram_factors = (int *)(sram_buffer + sram_offset);
   sram_offset += FFT_MAXFACTORS * sizeof(int);
@@ -69,9 +77,16 @@ __mlu_func__ void computeMutiStageOnchip(DT *input, DT *output, int *factors,
   DT *sram_twiddles = (DT *)(sram_buffer + sram_offset);
   const int twiddles_size = twiddles_end - twiddles;
   sram_offset += twiddles_size * sizeof(DT);
+  DT *sram_dftmtx = (DT *)(sram_buffer + sram_offset);
+  // sram_offset += DFT_TABLE_SIZE * sizeof(DT);
+
+  int load_once_twiddles = 1;
+  // ((MAX_SRAM_SIZE - FFT_MAXFACTORS * sizeof(int) - DFT_TABLE_SIZE*
+  // sizeof(DT)) >= twiddles_size );
+
+  // sram_offset += twiddles_size * sizeof(DT);
 
   // int sram_dftmtx_size = 0;
-  DT *sram_dftmtx = (DT *)(sram_buffer + sram_offset);
 
   const int _stage_count = factors[0];
   const int nfft = factors[1];
@@ -89,8 +104,14 @@ __mlu_func__ void computeMutiStageOnchip(DT *input, DT *output, int *factors,
     __memcpy_async(sram_factors, factors, FFT_MAXFACTORS * sizeof(int),
                    GDRAM2SRAM);
     if (twiddles_size) {
-      __memcpy_async(sram_twiddles, twiddles, twiddles_size * sizeof(DT),
-                     GDRAM2SRAM);
+      if (load_once_twiddles) {
+        __memcpy_async(sram_twiddles, twiddles, twiddles_size * sizeof(DT),
+                       GDRAM2SRAM);
+      } else {
+        // tw_offset = factors[small_factors_offset + 2];
+        __memcpy_async(sram_twiddles, twiddles, twiddles_size * sizeof(DT),
+                       GDRAM2SRAM);
+      }
     }
 
     const dft_table_entry *dft_table_gdram =
@@ -156,13 +177,13 @@ __mlu_func__ void computeMutiStageOnchip(DT *input, DT *output, int *factors,
           // first stage
 
           computeLargeButterflyFirststage<DT>(
-              output_batch, input_batch, in_stride, section_num, twiddles,
-              sram_dftmtx, (void *)nram_buf, small_factors, direction, nfft,
-              last_stage);
+              output_batch, input_batch, radix, in_stride, section_num,
+              twiddles, sram_dftmtx, (void *)nram_buf, small_factors, direction,
+              nfft, last_stage);
         }
       } else {
         computeLargeButterflyFirststageBatchPingpong<DT>(
-            output, input, in_stride, section_num, twiddles, sram_dftmtx,
+            output, input, radix, in_stride, section_num, twiddles, sram_dftmtx,
             (void *)nram_buf, small_factors, direction, nfft, last_stage,
             t_start, t_end);
       }
@@ -204,7 +225,7 @@ __mlu_func__ void computeMutiStageOnchip(DT *input, DT *output, int *factors,
             DT *buffer_batch = buffer + t * (nfft << 1);
 
             computeLargeButterflyOtherstages<DT>(
-                output_batch, buffer_batch, (DT *)twiddles, _twiddles,
+                output_batch, buffer_batch, radix, (DT *)twiddles, _twiddles,
                 sram_dftmtx, section_num, butterfly_num, in_stride,
                 (void *)nram_buf, small_factors, nfft, direction, 0);
 
@@ -212,7 +233,7 @@ __mlu_func__ void computeMutiStageOnchip(DT *input, DT *output, int *factors,
           }
         } else {
           computeLargeButterflyOtherstagesBatchPingpong<DT>(
-              output, buffer, (DT *)twiddles, _twiddles, sram_dftmtx,
+              output, buffer, radix, (DT *)twiddles, _twiddles, sram_dftmtx,
               section_num, butterfly_num, in_stride, (void *)nram_buf,
               small_factors, nfft, t_start, t_end, direction, 0);
         }
@@ -247,13 +268,13 @@ __mlu_func__ void computeMutiStageOnchip(DT *input, DT *output, int *factors,
             DT *buffer_batch = buffer + t * (nfft << 1);
 
             computeLargeButterflyLaststage<DT>(
-                output_batch, buffer_batch, (DT *)twiddles, _twiddles,
+                output_batch, buffer_batch, radix, (DT *)twiddles, _twiddles,
                 sram_dftmtx, section_num, butterfly_num, in_stride,
                 (void *)nram_buf, small_factors, nfft, direction);
           }
         } else {
           computeLargeButterflyLaststageBatchPingpong(
-              output, buffer, (DT *)twiddles, _twiddles, sram_dftmtx,
+              output, buffer, radix, (DT *)twiddles, _twiddles, sram_dftmtx,
               section_num, butterfly_num, in_stride, (void *)nram_buf,
               small_factors, nfft, t_start, t_end, direction);
         }
@@ -420,7 +441,7 @@ __mlu_func__ void computeMutiStageOnchipColumn(DT *input, DT *output,
         }
 
         computeLargeButterflyFirststageColumn<DT>(
-            output_batch, input_batch, in_stride, section_num, twiddles,
+            output_batch, input_batch, radix, in_stride, section_num, twiddles,
             sram_dftmtx, (void *)nram_buf, small_factors, direction, nfft,
             last_stage, para_batch, nb);
       }
@@ -471,7 +492,7 @@ __mlu_func__ void computeMutiStageOnchipColumn(DT *input, DT *output,
               (max_para_batch < (t_end - t)) ? max_para_batch : (t_end - t);
 
           computeLargeButterflyOtherstagesColumn<DT>(
-              output_batch, buffer_batch, (DT *)twiddles, _twiddles,
+              output_batch, buffer_batch, radix, (DT *)twiddles, _twiddles,
               sram_dftmtx, section_num, butterfly_num, in_stride,
               (void *)nram_buf, small_factors, nfft, direction, 0, para_batch,
               nb);
@@ -511,7 +532,7 @@ __mlu_func__ void computeMutiStageOnchipColumn(DT *input, DT *output,
               (max_para_batch < (t_end - t)) ? max_para_batch : (t_end - t);
 
           computeLargeButterflyLaststageColumn<DT>(
-              output_batch, buffer_batch, (DT *)twiddles, _twiddles,
+              output_batch, buffer_batch, radix, (DT *)twiddles, _twiddles,
               sram_dftmtx, section_num, butterfly_num, in_stride,
               (void *)nram_buf, small_factors, nfft, direction, para_batch, nb);
         }

@@ -26,13 +26,13 @@
 
 template <typename DT>
 __mlu_func__ void computeLargeButterflyLaststageBatchPingpongC2R(
-    DT *output, DT *input, int large_out_stride, int large_butterfly_num,
-    const DT *twiddles, const DT *dft_matrix, void *nram_buf,
-    const int *small_factors, int nfft, const int t_start, const int t_end) {
+    DT *output, DT *input, const int large_radix, int large_out_stride,
+    int large_butterfly_num, const DT *twiddles, const DT *dft_matrix,
+    void *nram_buf, const int *small_factors, int nfft, const int t_start,
+    const int t_end) {
   const int dir = FFT_BACKWARD;
   const dft_table_entry *dft_table = (const dft_table_entry *)dft_matrix;
-  int radix, small_in_stride, small_stage_count, large_radix,
-      _small_stage_count;
+  int radix, small_in_stride, small_stage_count, _small_stage_count;
   int small_section_num, small_butterfly_num, value_mul;
   int tw_offset, max_para_num;
 
@@ -40,8 +40,8 @@ __mlu_func__ void computeLargeButterflyLaststageBatchPingpongC2R(
   int align_K = 0;
 
   _small_stage_count = small_factors[0];
-  large_radix = small_factors[1];
-  tw_offset = small_factors[2];
+  // large_radix = small_factors[1];
+  tw_offset = small_factors[1];
 
   max_para_num = (large_butterfly_num < small_factors[3]) ? large_butterfly_num
                                                           : small_factors[3];
@@ -381,24 +381,24 @@ __mlu_func__ void computeLargeButterflyLaststageBatchPingpongC2R(
 
 template <typename DT>
 __mlu_func__ void computeLargeButterflyOtherstagesBatchPingpongC2R(
-    DT *output, DT *input, const DT *cur_large_twiddles, const DT *_twiddles,
-    const DT *dft_matrix, int large_section_num, int large_butterfly_num,
-    int large_out_stride, void *nram_buf, const int *small_factors, int nfft,
-    const int t_start, const int t_end, int last_stage) {
+    DT *output, DT *input, const int large_radix, const DT *cur_large_twiddles,
+    const DT *_twiddles, const DT *dft_matrix, int large_section_num,
+    int large_butterfly_num, int large_out_stride, void *nram_buf,
+    const int *small_factors, int nfft, const int t_start, const int t_end,
+    int last_stage) {
   // return;
   const int dir = FFT_BACKWARD;
   const dft_table_entry *dft_table = (const dft_table_entry *)dft_matrix;
 
-  int radix, small_in_stride, small_stage_count, large_radix,
-      _small_stage_count;
+  int radix, small_in_stride, small_stage_count, _small_stage_count;
   int small_section_num, small_butterfly_num, value_mul;
 
   int tw_offset;
   const int K_num = 64 / sizeof(DT);
   int align_K = 0;
   _small_stage_count = small_factors[0];
-  large_radix = small_factors[1];
-  tw_offset = small_factors[2];
+  // large_radix = small_factors[1];
+  tw_offset = small_factors[1];
 
   const int half_butterfly_num = large_butterfly_num / 2 + 1;
   const int large_tw_stride = large_butterfly_num / 2 + 1;
@@ -852,13 +852,13 @@ __mlu_func__ void computeLargeButterflyOtherstagesBatchPingpongC2R(
 
 template <typename DT>
 __mlu_func__ void computeLargeButterflyFirststageBatchPingpongC2R(
-    DT *output, DT *input, const DT *cur_large_twiddles, const DT *_twiddles,
-    const DT *dft_matrix, int large_section_num, int large_butterfly_num,
-    int large_out_stride, void *nram_buf, const int *small_factors, int nfft,
-    const int t_start, const int t_end, int dir, int last_stage) {
+    DT *output, DT *input, const int large_radix, const DT *cur_large_twiddles,
+    const DT *_twiddles, const DT *dft_matrix, int large_section_num,
+    int large_butterfly_num, int large_out_stride, void *nram_buf,
+    const int *small_factors, int nfft, const int t_start, const int t_end,
+    int dir, int last_stage) {
   const dft_table_entry *dft_table = (const dft_table_entry *)dft_matrix;
-  int radix, small_in_stride, small_stage_count, large_radix,
-      _small_stage_count;
+  int radix, small_in_stride, small_stage_count, _small_stage_count;
   int small_section_num, small_butterfly_num, value_mul;
   int tw_offset, max_para_num;
 
@@ -866,8 +866,8 @@ __mlu_func__ void computeLargeButterflyFirststageBatchPingpongC2R(
   int align_K = 0;
 
   _small_stage_count = small_factors[0];
-  large_radix = small_factors[1];
-  tw_offset = small_factors[2];
+  // large_radix = small_factors[1];
+  tw_offset = small_factors[1];
 
   const int half_butterfly_num = large_butterfly_num / 2 + 1;
   const int large_tw_stride = large_butterfly_num / 2 + 1;

@@ -301,7 +301,8 @@ kernelFFTStockham(cnrtDim3_t k_dim, cnrtFunctionType_t k_type,
                   const float scale_factor, FFTFlag flag);
 
 mluOpStatus_t MLUOP_WIN_API setMaxParallelNum(mluOpFFTPlan_t fft_plan,
-                                              int *facbuf, int stage);
+                                              int *facbuf, int stage,
+                                              const int large_radix);
 
 mluOpStatus_t MLUOP_WIN_API fftTwoStepFactor(mluOpFFTPlan_t fft_plan,
                                              const int _n, int *facbuf,

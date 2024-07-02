@@ -170,7 +170,7 @@ mluOpStatus_t MLUOP_WIN_API fftGenerateTwiddles(mluOpFFTPlan_t fft_plan,
     cur_large_radix = factors[5 * loop_stage];
     small_factors_offset = factors[5 * loop_stage + 4];
     small_stage_count = factors[small_factors_offset];
-    factors[small_factors_offset + 2] = tw_offset;
+    factors[small_factors_offset + 1] = tw_offset;
     // cur_radix = factors[4 * loop_stage];
     // section_num = factors[4 * loop_stage + 1];
     // butterfly_num = factors[4 * loop_stage + 2];
@@ -191,7 +191,9 @@ mluOpStatus_t MLUOP_WIN_API fftGenerateTwiddles(mluOpFFTPlan_t fft_plan,
       tw_offset +=
           butterfly_num * (cur_small_radix - 1);  // complex element offset
     }                                             // small_stage_count
-  }                                               // stage_count
+    factors[small_factors_offset + 2] = tw_offset;
+
+  }  // stage_count
 
   _twiddles_end = (void *)((DT *)_twiddles + tw_offset * 2);
   return MLUOP_STATUS_SUCCESS;
@@ -229,7 +231,7 @@ mluOpStatus_t MLUOP_WIN_API fftGenerateTwiddlesC2R(
     cur_large_radix = factors[5 * loop_stage];
     small_factors_offset = factors[5 * loop_stage + 4];
     small_stage_count = factors[small_factors_offset];
-    factors[small_factors_offset + 2] = tw_offset;
+    factors[small_factors_offset + 1] = tw_offset;
     // cur_radix = factors[4 * loop_stage];
     // section_num = factors[4 * loop_stage + 1];
     // butterfly_num = factors[4 * loop_stage + 2];
@@ -250,7 +252,9 @@ mluOpStatus_t MLUOP_WIN_API fftGenerateTwiddlesC2R(
       tw_offset +=
           butterfly_num * (cur_small_radix - 1);  // complex element offset
     }                                             // small_stage_count
-  }                                               // stage_count
+    factors[small_factors_offset + 2] = tw_offset;
+
+  }  // stage_count
 
   _twiddles_end = (void *)((DT *)_twiddles + tw_offset * 2);
   return MLUOP_STATUS_SUCCESS;
@@ -285,13 +289,7 @@ mluOpStatus_t MLUOP_WIN_API fftGenerateTwiddlesColumn(
     cur_large_radix = factors[5 * loop_stage];
     small_factors_offset = factors[5 * loop_stage + 4];
     small_stage_count = factors[small_factors_offset];
-    factors[small_factors_offset + 2] = tw_offset;
-    // cur_radix = factors[4 * loop_stage];
-    // section_num = factors[4 * loop_stage + 1];
-    // butterfly_num = factors[4 * loop_stage + 2];
-    // butterfly_num = factors[4 * loop_stage + 2];
-    // generator(twiddles, butterfly_num, section_num, cur_radix, _nfft, dir);
-    // twiddles += butterfly_num * (cur_radix - 1);
+    factors[small_factors_offset + 1] = tw_offset;
 
     for (small_loop_stage = 2; small_loop_stage <= small_stage_count;
          small_loop_stage++) {
@@ -306,7 +304,9 @@ mluOpStatus_t MLUOP_WIN_API fftGenerateTwiddlesColumn(
       tw_offset +=
           butterfly_num * (cur_small_radix - 1);  // complex element offset
     }                                             // small_stage_count
-  }                                               // stage_count
+    factors[small_factors_offset + 2] = tw_offset;
+
+  }  // stage_count
 
   _twiddles_end = (void *)((DT *)_twiddles + tw_offset * 2);
   return MLUOP_STATUS_SUCCESS;
@@ -741,9 +741,9 @@ mluOpStatus_t MLUOP_WIN_API fftFactor(const int _n, int *facbuf,
   }
 
   facbuf[0] = stage_num;
-  facbuf[1] = _n;
-  facbuf[2] = 0;  // tw_offset
-  // facbuf[3] = 0;  // max_parallel_num has been set
+  facbuf[1] = 0;  // tw_offset
+  facbuf[2] = 0;  // tw_end_offset
+  // facbuf[3] = 0;  // max_parallel_num
 
   if (stage_num > 21) {
     // Since nfft is openfft_int32_t, stage_num can never be greater than 21,
@@ -850,9 +850,9 @@ mluOpStatus_t MLUOP_WIN_API fftTwoStepFactor(mluOpFFTPlan_t fft_plan,
           }
           break;
 
-        case 4096:
-          4096;
-          break;
+          // case 4096:
+          //   4096;
+          //   break;
 
         case 6000:
           r = 6000;
@@ -997,7 +997,7 @@ mluOpStatus_t MLUOP_WIN_API fftTwoStepFactor(mluOpFFTPlan_t fft_plan,
     facbuf[5 * stage_num + 4] = small_factors_offset;
     int *cur_facbuf = &facbuf[small_factors_offset];
     fftFactor(r, facbuf, small_factors_offset);
-    setMaxParallelNum(fft_plan, cur_facbuf, stage_num);
+    setMaxParallelNum(fft_plan, cur_facbuf, stage_num, r);
 
     // facbuf[6*stage_num+4] = small_stage_count;
     // facbuf[6*stage_num+5] = small_factors_offset;
@@ -1202,7 +1202,8 @@ mluOpStatus_t MLUOP_WIN_API calParallelNumLowBound(mluOpFFTPlan_t fft_plan,
 }
 
 mluOpStatus_t MLUOP_WIN_API setMaxParallelNum(mluOpFFTPlan_t fft_plan,
-                                              int *facbuf, int stage) {
+                                              int *facbuf, int stage,
+                                              const int large_radix) {
   const std::string make_plan_api = "[setMaxParallelNum]";
 
   const size_t nram_space_size =
@@ -1221,7 +1222,6 @@ mluOpStatus_t MLUOP_WIN_API setMaxParallelNum(mluOpFFTPlan_t fft_plan,
   int space_need_matmul = 0;
   int space_need_matmul_tmp = 0;
   int small_stage_num = facbuf[0];
-  int _n = facbuf[1];
   int radix = 0;
   int section_num = 0;
   int butterfly_num = 0;
@@ -1247,33 +1247,33 @@ mluOpStatus_t MLUOP_WIN_API setMaxParallelNum(mluOpFFTPlan_t fft_plan,
       if (stage == 1) {
         nram_space_need = 0;
         // nram_para_load_ping
-        nram_space_need += _n * 2 * TYPE_SIZE;  // complex
+        nram_space_need += large_radix * 2 * TYPE_SIZE;  // complex
         // nram_para_load_pong
-        nram_space_need += _n * 2 * TYPE_SIZE;  // complex
+        nram_space_need += large_radix * 2 * TYPE_SIZE;  // complex
         // nram_para_store_ping
-        nram_space_need += _n * 2 * TYPE_SIZE;  // complex
+        nram_space_need += large_radix * 2 * TYPE_SIZE;  // complex
         // nram_para_store_pong
-        nram_space_need += _n * 2 * TYPE_SIZE;  // complex
+        nram_space_need += large_radix * 2 * TYPE_SIZE;  // complex
 
       } else {
         nram_space_need = 0;
         // nram_para_load_ping
-        nram_space_need += _n * 2 * TYPE_SIZE;  // complex
+        nram_space_need += large_radix * 2 * TYPE_SIZE;  // complex
         // nram_para_load_pong
-        nram_space_need += _n * 2 * TYPE_SIZE;  // complex
+        nram_space_need += large_radix * 2 * TYPE_SIZE;  // complex
         // nram_para_store_ping
-        nram_space_need += _n * 2 * TYPE_SIZE;  // complex
+        nram_space_need += large_radix * 2 * TYPE_SIZE;  // complex
         // nram_para_store_pong
-        nram_space_need += _n * 2 * TYPE_SIZE;  // complex
+        nram_space_need += large_radix * 2 * TYPE_SIZE;  // complex
         // nram_para_load_tw
-        nram_space_need += _n * 2 * TYPE_SIZE;  // complex
+        nram_space_need += large_radix * 2 * TYPE_SIZE;  // complex
         // // _nram_tw
-        // nram_space_need += _n * 2 * TYPE_SIZE;  // complex
+        // nram_space_need += large_radix* 2 * TYPE_SIZE;  // complex
       }
 
       space_need_matmul = 0;
       if (stage != 1) {
-        space_need_matmul = _n * 4 * TYPE_SIZE;
+        space_need_matmul = large_radix * 4 * TYPE_SIZE;
       }
       for (int small_stage_id = 1; small_stage_id <= small_stage_num;
            small_stage_id++) {
@@ -1316,7 +1316,7 @@ mluOpStatus_t MLUOP_WIN_API setMaxParallelNum(mluOpFFTPlan_t fft_plan,
       }
 
       // nram_space_need += space_need_matmul;
-      nram_space_need_tw = _n * 2 * TYPE_SIZE;  // complex
+      nram_space_need_tw = large_radix * 2 * TYPE_SIZE;  // complex
       const size_t nram_space_remain =
           (nram_space_size - nram_space_need_tw - nram_space_need_dftmtx);
       max_parallel_num =
@@ -1363,7 +1363,8 @@ mluOpStatus_t MLUOP_WIN_API setMaxParallelNum(mluOpFFTPlan_t fft_plan,
 
         if (nram_space_remain >
                 (nram_space_need * max_parallel_num + space_need_matmul) &&
-            ((max_parallel_num * _n % 64) == 0 || max_parallel_num < 64)) {
+            ((max_parallel_num * large_radix % 64) == 0 ||
+             max_parallel_num < 64)) {
           break;
         } else {
           max_parallel_num--;
@@ -1533,15 +1534,9 @@ mluOpStatus_t MLUOP_WIN_API mluOpMakeFFTPlanC2C1D(
     mluOpHandle_t handle, mluOpFFTPlan_t fft_plan,
     mluOpTensorDescriptor_t input_desc, mluOpTensorDescriptor_t output_desc,
     const int rank, const int *n) {
-  // reservespace_addr_ = mlu_runtime_.allocate(reservespace_size_)
-  // st = CNAME(openfft_allocate_c2c_plan_1d)(nfft, fin, fout, dir);
-  printf("is_batch_contiguous\n");
-  fft_plan->is_batch_contiguous = 0;
-  // (fft_plan->idist == 1 && fft_plan->odist == 1);
-
-  // std::cout<< "mluOpAllocateC2C1D"<<std::endl;
+  fft_plan->is_batch_contiguous =
+      (fft_plan->idist == 1 && fft_plan->odist == 1);
   mluOpAllocateC2C1D(handle, fft_plan, input_desc, output_desc, n[0]);
-  // std::cout<< "mluOpAllocateC2C1D"<<std::endl;
   int is_row_major = !fft_plan->is_batch_contiguous;
   fftTwoStepFactor(fft_plan, n[0], fft_plan->factors, is_row_major,
                    fft_plan->fft_type);
@@ -1600,11 +1595,6 @@ mluOpStatus_t MLUOP_WIN_API mluOpMakeFFTPlanC2C1D(
       break;
   }
 
-  // if(fft_plan->twiddles == NULL){
-  //   std::cout<<" \n\n\n fft_plan->twiddles == NULL \n\n\n"<<std::endl;
-  // }
-  // CNAME(openfft_generate_twiddles)(st->twiddles, st->factors, nfft, st->dir);
-
   return MLUOP_STATUS_SUCCESS;
 }
 
@@ -1622,9 +1612,6 @@ mluOpStatus_t MLUOP_WIN_API mluOpMakeFFTPlanC2R1D(
       fftGenerateTwiddlesC2R<float>(fft_plan, fft_plan->twiddles,
                                     fft_plan->twiddles_end, fft_plan->factors,
                                     n[0], FFT_BACKWARD);
-      // for(int i=0; i< 32; i++) {
-      //   printf("twiddles: %f\n", ((float*)(fft_plan->twiddles))[i]);
-      // }
       fftGenerateDftMatrix<float>(fft_plan->dft_matrix, fft_plan->factors, n[0],
                                   FFT_BACKWARD);
       break;
@@ -2258,7 +2245,6 @@ mluOpStatus_t MLUOP_WIN_API mluOpMakeFFTPlanMany(
     case CNFFT_COMPLEX_FLOAT2COMPLEX_FLOAT: {
       if (rank == 1) {
         if (fft_plan->prime == 0) {
-          printf("mluOpMakeFFTPlanC2C1D\n");
           status = mluOpMakeFFTPlanC2C1D(handle, fft_plan, input_desc,
                                          output_desc, rank, n);
 

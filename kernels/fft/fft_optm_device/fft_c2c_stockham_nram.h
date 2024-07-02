@@ -26,14 +26,13 @@
 
 template <typename DT>
 __mlu_func__ void computeLargeButterflyFirststage(
-    DT *output, DT *input, int large_in_stride, int section_num,
-    const DT *twiddles, const DT *dft_matrix, void *nram_buf,
+    DT *output, DT *input, const int large_radix, int large_in_stride,
+    int section_num, const DT *twiddles, const DT *dft_matrix, void *nram_buf,
     const int *small_factors, int dir, int nfft, int last_stage) {
   const dft_table_entry *dft_table = (const dft_table_entry *)dft_matrix;
 
   // network info
-  int radix, small_in_stride, small_stage_count, large_radix,
-      _small_stage_count;
+  int radix, small_in_stride, small_stage_count, _small_stage_count;
   int small_section_num, small_butterfly_num, value_mul;
   int tw_offset;
 
@@ -41,8 +40,8 @@ __mlu_func__ void computeLargeButterflyFirststage(
   int align_K = 0;
 
   _small_stage_count = small_factors[0];
-  large_radix = small_factors[1];
-  tw_offset = small_factors[2];
+  // large_radix = small_factors[1];
+  tw_offset = small_factors[1];
 
   // load compute store
   // (0)                              load 0 ping sync()
@@ -485,16 +484,15 @@ __mlu_func__ void computeLargeButterflyFirststage(
 
 template <typename DT>
 __mlu_func__ void computeLargeButterflyFirststageBatchPingpong(
-    DT *output, DT *input, int large_in_stride, int section_num,
-    const DT *twiddles, const DT *dft_matrix, void *nram_buf,
+    DT *output, DT *input, const int large_radix, int large_in_stride,
+    int section_num, const DT *twiddles, const DT *dft_matrix, void *nram_buf,
     const int *small_factors, int dir, int nfft, int last_stage,
     const int t_start, const int t_end) {
   const dft_table_entry *dft_table = (const dft_table_entry *)dft_matrix;
   // DT *input_batch = input + t * (nfft << 1);
   // DT *output_batch = output + t * (nfft << 1);
   // network info
-  int radix, small_in_stride, small_stage_count, large_radix,
-      _small_stage_count;
+  int radix, small_in_stride, small_stage_count, _small_stage_count;
   int small_section_num, small_butterfly_num, value_mul;
   int tw_offset, max_para_ldst_num;
 
@@ -502,8 +500,9 @@ __mlu_func__ void computeLargeButterflyFirststageBatchPingpong(
   int align_K = 0;
 
   _small_stage_count = small_factors[0];
-  large_radix = small_factors[1];
-  tw_offset = small_factors[2];
+  // large_radix = small_factors[1];
+  tw_offset = small_factors[1];
+  // printf("tw_offset: %d, large_radix: %d\n", tw_offset, large_radix);
 
   max_para_ldst_num =
       (section_num < small_factors[3]) ? section_num : small_factors[3];
@@ -970,24 +969,23 @@ __mlu_func__ void computeLargeButterflyFirststageBatchPingpong(
 
 template <typename DT>
 __mlu_func__ void computeLargeButterflyOtherstages(
-    DT *output, DT *input, const DT *cur_large_twiddles, const DT *_twiddles,
-    const DT *dft_matrix, int large_section_num, int large_butterfly_num,
-    int large_in_stride, void *nram_buf, const int *small_factors, int nfft,
-    int dir, int last_stage) {
+    DT *output, DT *input, const int large_radix, const DT *cur_large_twiddles,
+    const DT *_twiddles, const DT *dft_matrix, int large_section_num,
+    int large_butterfly_num, int large_in_stride, void *nram_buf,
+    const int *small_factors, int nfft, int dir, int last_stage) {
   // return;
   const dft_table_entry *dft_table = (const dft_table_entry *)dft_matrix;
   const int K_num = 64 / sizeof(DT);
   int align_K = 0;
-  int radix, small_in_stride, small_stage_count, large_radix,
-      _small_stage_count;
+  int radix, small_in_stride, small_stage_count, _small_stage_count;
   int small_section_num, small_butterfly_num, value_mul;
 
   const int large_out_stride = large_butterfly_num;
   int tw_offset;
 
   _small_stage_count = small_factors[0];
-  large_radix = small_factors[1];
-  tw_offset = small_factors[2];
+  // large_radix = small_factors[1];
+  tw_offset = small_factors[1];
 
   const DT *small_twiddles = _twiddles + tw_offset * 2;  // complex
 
@@ -1605,27 +1603,27 @@ __mlu_func__ void computeLargeButterflyOtherstages(
 
 template <typename DT>
 __mlu_func__ void computeLargeButterflyLaststage(
-    DT *output, DT *input, const DT *cur_large_twiddles, const DT *_twiddles,
-    const DT *dft_matrix, int large_section_num, int large_butterfly_num,
-    int large_in_stride, void *nram_buf, const int *small_factors, int nfft,
-    int dir) {
-  computeLargeButterflyOtherstages(output, input, cur_large_twiddles, _twiddles,
-                                   dft_matrix, large_section_num,
-                                   large_butterfly_num, large_in_stride,
-                                   nram_buf, small_factors, nfft, dir, 1);
+    DT *output, DT *input, const int large_radix, const DT *cur_large_twiddles,
+    const DT *_twiddles, const DT *dft_matrix, int large_section_num,
+    int large_butterfly_num, int large_in_stride, void *nram_buf,
+    const int *small_factors, int nfft, int dir) {
+  computeLargeButterflyOtherstages(
+      output, input, large_radix, cur_large_twiddles, _twiddles, dft_matrix,
+      large_section_num, large_butterfly_num, large_in_stride, nram_buf,
+      small_factors, nfft, dir, 1);
 }
 
 template <typename DT>
 __mlu_func__ void computeLargeButterflyOtherstagesBatchPingpong(
-    DT *output, DT *input, const DT *cur_large_twiddles, const DT *_twiddles,
-    const DT *dft_matrix, int large_section_num, int large_butterfly_num,
-    int large_in_stride, void *nram_buf, const int *small_factors, int nfft,
-    const int t_start, const int t_end, int dir, int last_stage) {
+    DT *output, DT *input, const int large_radix, const DT *cur_large_twiddles,
+    const DT *_twiddles, const DT *dft_matrix, int large_section_num,
+    int large_butterfly_num, int large_in_stride, void *nram_buf,
+    const int *small_factors, int nfft, const int t_start, const int t_end,
+    int dir, int last_stage) {
   // return;
   const dft_table_entry *dft_table = (const dft_table_entry *)dft_matrix;
 
-  int radix, small_in_stride, small_stage_count, large_radix,
-      _small_stage_count;
+  int radix, small_in_stride, small_stage_count, _small_stage_count;
   int small_section_num, small_butterfly_num, value_mul;
 
   const int large_out_stride = large_butterfly_num;
@@ -1633,8 +1631,8 @@ __mlu_func__ void computeLargeButterflyOtherstagesBatchPingpong(
   const int K_num = 64 / sizeof(DT);
   int align_K = 0;
   _small_stage_count = small_factors[0];
-  large_radix = small_factors[1];
-  tw_offset = small_factors[2];
+  // large_radix = small_factors[1];
+  tw_offset = small_factors[1];
 
   const DT *small_twiddles = _twiddles + tw_offset * 2;  // complex
 
@@ -2094,20 +2092,21 @@ __mlu_func__ void computeLargeButterflyOtherstagesBatchPingpong(
 
 template <typename DT>
 __mlu_func__ void computeLargeButterflyLaststageBatchPingpong(
-    DT *output, DT *input, const DT *cur_large_twiddles, const DT *_twiddles,
-    const DT *dft_matrix, int large_section_num, int large_butterfly_num,
-    int large_in_stride, void *nram_buf, const int *small_factors, int nfft,
-    const int t_start, const int t_end, int dir) {
+    DT *output, DT *input, const int large_radix, const DT *cur_large_twiddles,
+    const DT *_twiddles, const DT *dft_matrix, int large_section_num,
+    int large_butterfly_num, int large_in_stride, void *nram_buf,
+    const int *small_factors, int nfft, const int t_start, const int t_end,
+    int dir) {
   computeLargeButterflyOtherstagesBatchPingpong(
-      output, input, cur_large_twiddles, _twiddles, dft_matrix,
+      output, input, large_radix, cur_large_twiddles, _twiddles, dft_matrix,
       large_section_num, large_butterfly_num, large_in_stride, nram_buf,
       small_factors, nfft, t_start, t_end, dir, 1);
 }
 
 template <typename DT>
 __mlu_func__ void computeLargeButterflyFirststageColumn(
-    DT *output, DT *input, int large_in_stride, int section_num,
-    const DT *twiddles, const DT *dft_matrix, void *nram_buf,
+    DT *output, DT *input, const int large_radix, int large_in_stride,
+    int section_num, const DT *twiddles, const DT *dft_matrix, void *nram_buf,
     const int *small_factors, int dir, int nfft, int last_stage,
     const int para_batch, const int nb) {
   // constant
@@ -2118,14 +2117,13 @@ __mlu_func__ void computeLargeButterflyFirststageColumn(
   // test
 
   // network info
-  int radix, small_in_stride, small_stage_count, large_radix,
-      _small_stage_count;
+  int radix, small_in_stride, small_stage_count, _small_stage_count;
   int small_section_num, small_butterfly_num, value_mul;
   int tw_offset;
   // int max_radix = small_factors[4];
   _small_stage_count = small_factors[0];
-  large_radix = small_factors[1];
-  tw_offset = small_factors[2];
+  // large_radix = small_factors[1];
+  tw_offset = small_factors[1];
 
   // load compute store
   // (0)                              load 0 ping sync()
@@ -2443,23 +2441,23 @@ __mlu_func__ void computeLargeButterflyFirststageColumn(
 
 template <typename DT>
 __mlu_func__ void computeLargeButterflyOtherstagesColumn(
-    DT *output, DT *input, const DT *cur_large_twiddles, const DT *_twiddles,
-    const DT *dft_matrix, int large_section_num, int large_butterfly_num,
-    int large_in_stride, void *nram_buf, const int *small_factors, int nfft,
-    int dir, int last_stage, int para_batch, int nb) {
+    DT *output, DT *input, const int large_radix, const DT *cur_large_twiddles,
+    const DT *_twiddles, const DT *dft_matrix, int large_section_num,
+    int large_butterfly_num, int large_in_stride, void *nram_buf,
+    const int *small_factors, int nfft, int dir, int last_stage, int para_batch,
+    int nb) {
   // return;
   const dft_table_entry *dft_table = (const dft_table_entry *)dft_matrix;
 
-  int radix, small_in_stride, small_stage_count, large_radix,
-      _small_stage_count;
+  int radix, small_in_stride, small_stage_count, _small_stage_count;
   int small_section_num, small_butterfly_num, value_mul;
 
   const int large_out_stride = large_butterfly_num;
   int tw_offset;
 
   _small_stage_count = small_factors[0];
-  large_radix = small_factors[1];
-  tw_offset = small_factors[2];
+  // large_radix = small_factors[1];
+  tw_offset = small_factors[1];
 
   const int K_num = 64 / sizeof(DT);
   int align_K = 0;
@@ -2860,12 +2858,12 @@ __mlu_func__ void computeLargeButterflyOtherstagesColumn(
 
 template <typename DT>
 __mlu_func__ void computeLargeButterflyLaststageColumn(
-    DT *output, DT *input, const DT *cur_large_twiddles, const DT *_twiddles,
-    const DT *dft_matrix, int large_section_num, int large_butterfly_num,
-    int large_in_stride, void *nram_buf, const int *small_factors, int nfft,
-    int dir, int para_batch, int nb) {
+    DT *output, DT *input, const int large_radix, const DT *cur_large_twiddles,
+    const DT *_twiddles, const DT *dft_matrix, int large_section_num,
+    int large_butterfly_num, int large_in_stride, void *nram_buf,
+    const int *small_factors, int nfft, int dir, int para_batch, int nb) {
   computeLargeButterflyOtherstagesColumn(
-      output, input, cur_large_twiddles, _twiddles, dft_matrix,
+      output, input, large_radix, cur_large_twiddles, _twiddles, dft_matrix,
       large_section_num, large_butterfly_num, large_in_stride, nram_buf,
       small_factors, nfft, dir, 1, para_batch, nb);
 }
