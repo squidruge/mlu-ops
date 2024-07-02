@@ -192,7 +192,6 @@ mluOpStatus_t MLUOP_WIN_API fftGenerateTwiddles(mluOpFFTPlan_t fft_plan,
           butterfly_num * (cur_small_radix - 1);  // complex element offset
     }                                             // small_stage_count
     factors[small_factors_offset + 2] = tw_offset;
-
   }  // stage_count
 
   _twiddles_end = (void *)((DT *)_twiddles + tw_offset * 2);
@@ -253,7 +252,6 @@ mluOpStatus_t MLUOP_WIN_API fftGenerateTwiddlesC2R(
           butterfly_num * (cur_small_radix - 1);  // complex element offset
     }                                             // small_stage_count
     factors[small_factors_offset + 2] = tw_offset;
-
   }  // stage_count
 
   _twiddles_end = (void *)((DT *)_twiddles + tw_offset * 2);
@@ -305,9 +303,7 @@ mluOpStatus_t MLUOP_WIN_API fftGenerateTwiddlesColumn(
           butterfly_num * (cur_small_radix - 1);  // complex element offset
     }                                             // small_stage_count
     factors[small_factors_offset + 2] = tw_offset;
-
   }  // stage_count
-
   _twiddles_end = (void *)((DT *)_twiddles + tw_offset * 2);
   return MLUOP_STATUS_SUCCESS;
 }
