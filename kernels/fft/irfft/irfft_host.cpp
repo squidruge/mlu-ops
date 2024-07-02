@@ -845,8 +845,8 @@ static mluOpStatus_t makeIRFFT1dContiguousInput_v2(mluOpHandle_t handle,
                                            dims, strides);
     INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
 
-    status = mluOpContiguous(handle, input_desc, input,
-                             fft_plan->mlu_addrs.input);
+    status =
+        mluOpContiguous(handle, input_desc, input, fft_plan->mlu_addrs.input);
     INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
 
     status = mluOpDestroyTensorDescriptor(input_desc);

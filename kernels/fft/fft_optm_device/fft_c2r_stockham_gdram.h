@@ -155,9 +155,6 @@ __mlu_func__ void computeMutiStageOnchipC2R(DT *input, DT *output, int *factors,
     //            input -> buffer -> extra_buffer -> buffer -> extra_buffer ->
     //            output (5 stage)
 
-    // _stage_count = stage_count;
-
-    // if (_stage_count != 1) FFT_SWAP_PTR(buffer, output);
     if (_stage_count == 1) buffer = output;
 
     small_factors = factors + small_factors_offset;
@@ -166,7 +163,6 @@ __mlu_func__ void computeMutiStageOnchipC2R(DT *input, DT *output, int *factors,
           buffer, input, twiddles, _twiddles, sram_dftmtx, section_num,
           butterfly_num, out_stride, (void *)nram_buf, small_factors, nfft,
           t_start, t_end, FFT_BACKWARD, last_stage);
-      // printf("first stage_count: %d, radix: %d\n", stage_count, radix);
     }
 
     // __sync();
@@ -199,8 +195,6 @@ __mlu_func__ void computeMutiStageOnchipC2R(DT *input, DT *output, int *factors,
             section_num, butterfly_num, out_stride, (void *)nram_buf,
             small_factors, nfft, t_start, t_end, 0);
         FFT_SWAP_PTR(extra_buffer, buffer);
-
-        // printf("other stage_count: %d, radix: %d\n", stage_count, radix);
       }
     }
   }  // for (stage_count)
@@ -222,8 +216,6 @@ __mlu_func__ void computeMutiStageOnchipC2R(DT *input, DT *output, int *factors,
         computeLargeButterflyLaststageBatchPingpongC2R(
             output, buffer, out_stride, section_num, _twiddles, sram_dftmtx,
             (void *)nram_buf, small_factors, nfft, t_start, t_end);
-
-        // printf("last stage_count: %d, radix: %d\n", stage_count, radix);
       }
     }
   }
