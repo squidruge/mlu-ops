@@ -278,7 +278,6 @@ __mlu_func__ void computeLargeButterflyFirststage(
                      nram_out_i, para_ldst_num * large_radix * sizeof(DT),
                      NRAM2NRAM);
           }
-
           continue;
         }
 
@@ -333,17 +332,6 @@ __mlu_func__ void computeLargeButterflyFirststage(
           }
 
           switch (radix) {
-            case 2:
-              // computeRadix2ButterflyOtherstages(Fout, Fin, section_num,
-              // section_num, 1, dir);
-              break;
-            case 3:
-              computeRadix3ButterflyOtherstages(
-                  nram_out_r, nram_out_i, nram_in_r, nram_in_i, nram_scratch,
-                  nram_tw, small_section_num, small_butterfly_num,
-                  small_in_stride, dir);
-              break;
-
             default:
               // computeGenericButterflyOtherstages(Fout, buffer, twiddles,
               // radix, section_num, butterfly_num, in_stride, 0, dir);
@@ -391,7 +379,6 @@ __mlu_func__ void computeLargeButterflyFirststage(
                          sizeof(DT) * 2 * ld_dft_radix * align_K, SRAM2NRAM);
                 break;
               }
-
               if (dft_table[entry].radix == -1) {
                 break;
               }
@@ -399,9 +386,6 @@ __mlu_func__ void computeLargeButterflyFirststage(
           }
 
           switch (radix) {
-            case 2:
-              break;
-
             default:
               MLULOG("computeGenericButterflyLaststageMat: %d.\n", radix);
               computeGenericButterflyLaststageMat(
@@ -1295,7 +1279,6 @@ __mlu_func__ void computeLargeButterflyOtherstages(
               __bang_transpose(nram_para_store.i, nram_out_i, para_ldst_num,
                                large_radix);
             }
-
             continue;
           }
 

@@ -1304,22 +1304,6 @@ __mlu_func__ void computeLargeButterflyFirststageBatchPingpongC2R(
                          sizeof(DT) * large_radix, NRAM2GDRAM);
 
         } else {
-          //                     for (int i = 0; i < large_radix * para_num;
-          //                     i++) {
-          //   printf("1269 nram_para_store_ping: %f, %f\n", ((float
-          //   *)nram_para_store_ping)[i],
-          //   ((float *)nram_para_store_ping+ large_radix * para_num)[i]);
-          // }
-
-          // for (int i = 0; i < large_radix * para_num; i++) {
-          //   printf("1541 nram_in[%d]: %f, %f\n", i,
-          //          ((float *)nram_para_store_ping)[i],
-          //          ((float *)nram_para_store_ping)[i + large_radix *
-          //          para_num]);
-          // }
-          // printf("large_out_stride: %d\n", large_out_stride);
-
-          // scatter-store
           __memcpy_async(output_batch - 2 * odist + butterfly_id,
                          nram_para_store_ping, sizeof(DT) * para_num,
                          NRAM2GDRAM, sizeof(DT) * large_out_stride,
@@ -1330,37 +1314,6 @@ __mlu_func__ void computeLargeButterflyFirststageBatchPingpongC2R(
                          sizeof(DT) * large_out_stride, sizeof(DT) * para_num,
                          large_radix - 1);
         }
-
-        // __memcpy_async(nram_para_load_ping, input_batch + sec_id * 2,
-        //        sizeof(DT) * 2 * para_num, GDRAM2NRAM,
-        //        sizeof(DT) * 2 * para_num,
-        //        large_in_stride * sizeof(DT) * 2, upper_radix - 1);
-
-        // if (first_stage) {
-        //   if (half_butterfly_num == 1) {
-        //     // store only real part
-
-        //     __memcpy_async(output_batch - 2 * odist, nram_para_store_ping,
-        //                    sizeof(DT) * large_radix, NRAM2GDRAM);
-
-        //   } else {
-        //     // scatter-store
-        //     __memcpy_async(output_batch - 2 * odist + sec_id * large_radix,
-        //                    nram_para_store_ping,
-        //                    sizeof(DT) * para_num * large_radix, NRAM2GDRAM);
-        //   }
-        // } else {
-        //   // real
-        //   __memcpy_async(output_batch - 2 * odist + sec_id * large_radix,
-        //                  nram_para_store_ping,
-        //                  para_num * large_radix * sizeof(DT), NRAM2GDRAM);
-        //   // imag
-        //   __memcpy_async(output_batch - 2 * odist + sec_id * large_radix +
-        //   nfft,
-        //                  nram_para_store_ping + max_para_num *
-        //                  large_radix, para_num * large_radix * sizeof(DT),
-        //                  NRAM2GDRAM);
-        // }
       }
 
       // pipeline: compute-stage

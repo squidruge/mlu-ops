@@ -457,11 +457,6 @@ mluOpStatus_t MLUOP_WIN_API fftGenerateDftMatrix(void *&_dft_matrix,
 mluOpStatus_t MLUOP_WIN_API fftFactor(const int _n, int *facbuf,
                                       int &small_factors_offset) {
   int n = _n;
-  // if ((facbuf == NULL) || (n <= 0))
-  // {
-  //   printf("ERROR, facbuf is NULL or n smaller and equal to 0.  __FILE__: %s,
-  //   __LINE__: %d. \n", __FILE__, __LINE__); exit(1);
-  // }
 
   int r, in_stride, section_num, stage_num = 0, out_stride = 1;
   int radix_basic[] = {3, 4, 5, 6, 7, 8, 9, 11, 13, 16};
