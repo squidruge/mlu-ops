@@ -664,6 +664,14 @@ mluOpStatus_t MLUOP_WIN_API fftFactor(const int _n, int *facbuf,
         }
         break;
 
+      case 32:
+        if (n % 8 == 0) {
+          r = 8;
+        } else {
+          r = 4;
+        }
+        break;
+
       default:
         if (_n <= 64) {
           r = _n;
@@ -684,6 +692,9 @@ mluOpStatus_t MLUOP_WIN_API fftFactor(const int _n, int *facbuf,
     in_stride = _n / r;
     section_num = n;
     stage_num++;
+
+    // radix display
+    printf("[Radix]: %d\n", r);
 
     facbuf[4 * stage_num + 0] = r;
     facbuf[4 * stage_num + 1] = section_num;
@@ -938,6 +949,9 @@ mluOpStatus_t MLUOP_WIN_API fftTwoStepFactor(mluOpFFTPlan_t fft_plan,
       default:
         break;
     }
+
+    // radix display
+    printf("[Large Radix]: %d\n", r);
 
     section_num = n;
     stage_num++;

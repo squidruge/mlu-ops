@@ -2634,8 +2634,6 @@ __mlu_func__ void computeLargeButterflyFirststageColumn(
           }
 
           switch (radix) {
-            case 2:
-              break;
 
             default:
               MLULOG("computeGenericButterflyLaststageMat: %d.\n", radix);

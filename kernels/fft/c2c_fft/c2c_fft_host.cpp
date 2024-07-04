@@ -1893,12 +1893,18 @@ mluOpStatus_t execFFTc2r1d(mluOpHandle_t handle, mluOpFFTPlan_t fft_plan,
 
   cnrtFunctionType_t k_type = CNRT_FUNC_TYPE_UNION1;
   cnrtDim3_t k_dim;
-  k_dim.x = handle->core_num_per_cluster *
-            mluop::runtime::getClusterLimitCapability(handle);
-  k_dim.y = 1;
-  k_dim.z = 1;
-
-  kernelFFT1dButterflyRowC2R(k_dim, k_type, handle->queue, fft_plan, FFT_IFFT);
+  policyFunc(handle, &k_dim, &k_type);
+  // k_dim.x = handle->core_num_per_cluster *
+  //           mluop::runtime::getClusterLimitCapability(handle);
+  // k_dim.y = 1;
+  // k_dim.z = 1;
+  if (!fft_plan->is_batch_contiguous) {
+    kernelFFT1dButterflyRowC2R(k_dim, k_type,
+                               handle->queue, fft_plan, FFT_IFFT);
+  } else {
+    kernelFFT1dButterflyColumnC2R(k_dim, k_type,
+                                  handle->queue, fft_plan, FFT_IFFT);
+  }
 
   return status;
 }

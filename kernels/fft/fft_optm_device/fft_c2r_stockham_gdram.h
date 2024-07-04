@@ -199,7 +199,6 @@ __mlu_func__ void computeMutiStageOnchipC2R(DT *input, DT *output, int *factors,
             section_num, butterfly_num, out_stride, (void *)nram_buf,
             small_factors, nfft, t_start, t_end, 0);
         FFT_SWAP_PTR(extra_buffer, buffer);
-
         printf("other stage_count: %d, radix: %d\n", stage_count, radix);
       }
     }
@@ -227,4 +226,16 @@ __mlu_func__ void computeMutiStageOnchipC2R(DT *input, DT *output, int *factors,
       }
     }
   }
+}
+
+template <typename DT>
+__mlu_func__ void computeMutiStageOnchipC2RColumn(DT *input, DT *output,
+                                            int *factors, DT *twiddles,
+                                            const DT *twiddles_end,
+                                            const DT *dft_matrix, DT *buffer,
+                                            int batch, int fft_flag, int nb) {
+  int total_num = batch;
+  int repeat_num = total_num / taskDim;
+  int remain_num = total_num % taskDim;
+  
 }
