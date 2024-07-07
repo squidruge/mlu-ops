@@ -1727,3 +1727,188 @@ __mlu_func__ void computeLargeButterflyFirststageBatchPingpongC2R(
     }
   }
 }
+
+
+  // DT *output, DT *input, const DT *cur_large_twiddles, const DT *_twiddles,
+  // const DT *dft_matrix, int large_section_num, int large_butterfly_num,
+  // int large_out_stride, void *nram_buf, const int *small_factors, int nfft,
+  // const int t_start, const int t_end, int dir, int last_stage, int nb
+
+template <typename DT>
+__mlu_func__ void computeLargeButterflyFirststageC2RColumn<DT>() {
+
+
+
+
+
+
+
+
+  
+
+
+  const int K_num = 64 / sizeof(DT);
+  int align_K = 0;
+  const dft_table_entry *dft_table = (const dft_table_entry *)dft_matrix;
+
+  int radix, small_in_stride, small_stage_count, large_radix,
+      _small_stage_count;
+  int small_section_num, small_butterfly_num, value_mul;
+  int tw_offset, max_para_num;
+
+  _small_stage_count = small_factors[0];
+  large_radix = small_factors[1];
+  tw_offset = small_factors[2];
+
+  const int half_butterfly_num = large_butterfly_num / 2 + 1;
+  const int large_tw_stride = large_butterfly_num / 2 + 1;
+
+  max_para_num = (large_butterfly_num < small_factors[3]) ? large_butterfly_num
+                                                          : small_factors[3];
+
+  const DT *small_twiddles = _twiddles + tw_offset * 2;  // complex
+
+  // assign nram space
+  int nram_buf_offset = 0;
+
+  DT *nram_para_load_ping = (DT *)nram_buf + nram_buf_offset;
+  nram_buf_offset += large_radix * max_para_num * 2;  // complex
+
+  DT *nram_para_load_pong = (DT *)nram_buf + nram_buf_offset;
+  nram_buf_offset += large_radix * max_para_num * 2;  // complex
+
+  DT *nram_para_store_ping = (DT *)nram_buf + nram_buf_offset;
+  nram_buf_offset += large_radix * max_para_num * 2;  // complex
+
+  DT *nram_para_store_pong = (DT *)nram_buf + nram_buf_offset;
+  nram_buf_offset += large_radix * max_para_num * 2;  // complex
+
+  DT *nram_para_load_tw = (DT *)nram_buf + nram_buf_offset;
+  nram_buf_offset += large_radix * max_para_num * 2;  // complex
+
+  DT *_nram_tw = (DT *)nram_buf + nram_buf_offset;
+  nram_buf_offset += large_radix * 2;  // complex
+
+  int ld_dft_radix = -1;
+  const int max_radix = 64;
+  DT *nram_dftmtx = (DT *)nram_buf + nram_buf_offset;
+  nram_buf_offset += max_radix * max_radix * 2;  // complex
+
+  DT *nram_scratch = (DT *)nram_buf + nram_buf_offset;
+
+  __memcpy_async(_nram_tw, small_twiddles, large_radix * sizeof(DT) * 2,
+                SRAM2NRAM);
+  int repeat_num = section_num;
+
+  /* ---------------------------------------------------------------------- */
+  /* ---------------------------------------------------------------------- */
+  /* ---------------------------------------------------------------------- */
+  /* ---------------------------------------------------------------------- */
+
+  // [PARAMETERS PREPARE] C2R Parameters
+  const int upper_radix = (large_radix + 1) / 2;
+  const int lower_radix = large_radix - upper_radix;
+
+  for (int repeat_id = 0; repeat_id < repeat_num + 2; ++repeat_id) {
+    // [PIPELINE] load-stage
+    if (repeat_id < repeat_num) {
+      int i = repeat_id;
+      __memcpy_async(nram_para_load_ping, input + i * 2 * nb,
+                     sizeof(DT) * 2 * para_batch, GDRAM2NRAM,
+                     sizeof(DT) * 2 * para_batch,
+                     nb * large_in_stride * sizeof(DT) * 2, large_radix - 1);
+
+    }
+
+    // [PIPELINE] store-stage
+    if (repeat_id >= 2) {
+      int i = (repeat_id - 2);
+      if (last_stage) {
+        __memcpy_async(output + i * large_radix * 2 * nb, nram_para_store_ping,
+                        para_batch * sizeof(DT) * 2, NRAM2GDRAM,
+                        nb * 2 * sizeof(DT), para_batch * sizeof(DT) * 2,
+                        large_radix - 1);
+      } else {
+          // real
+          __memcpy_async(output + i * large_radix * para_batch,
+                        nram_para_store_ping,
+                        para_batch * large_radix * sizeof(DT), NRAM2GDRAM);
+          // imag
+          __memcpy_async(
+              output + i * large_radix * para_batch + nfft * para_batch,
+              nram_para_store_ping + para_batch * large_radix,
+              para_batch * large_radix * sizeof(DT), NRAM2GDRAM);
+      }
+    }
+
+    // [PIPELINE] compute-stage
+    if (repeat_id >= 1 && repeat_id < repeat_num + 1) {
+      DT *nram_in_r = nram_para_store_pong;
+      DT *nram_in_i = nram_para_store_pong + large_radix * para_batch;
+
+      DT *nram_out_r = nram_para_load_pong;
+      DT *nram_out_i = nram_para_load_pong + large_radix * para_batch;
+
+      __bang_transpose(nram_in_r, nram_para_load_pong, large_radix * para_batch,
+                  2);
+      for (int compute_id = 0; compute_id < para_batch;
+           compute_id += para_batch) {
+        radix = small_factors[4];
+        small_section_num = small_factors[5];
+        small_in_stride = small_factors[7];
+        small_stage_count = _small_stage_count;
+
+        if (ld_dft_radix != radix) {
+          ld_dft_radix = radix;
+          for (int entry = 0;; entry++) {
+            if (dft_table[entry].radix == ld_dft_radix) {
+              align_K = K_num * ((radix + K_num - 1) / K_num);
+              __memcpy(nram_dftmtx, &dft_matrix[dft_table[entry].offset * 2],
+                       sizeof(DT) * 2 * ld_dft_radix * align_K, SRAM2NRAM);
+              break;
+            }
+
+            if (dft_table[entry].radix == -1) {
+              break;
+            }
+          }
+        }
+
+        computeGenericButterflyFirststageMat(
+            nram_out_r, nram_out_i, nram_in_r, nram_in_i, nram_scratch,
+            nram_dftmtx, small_section_num * para_batch,
+            small_section_num * para_batch, 1, dir, radix);
+        break;
+
+        small_stage_count--;
+        if (small_stage_count == 0) {
+          // nram to gdram
+          FFT_SWAP_PTR(nram_out_r, nram_in_r);
+          FFT_SWAP_PTR(nram_out_i, nram_in_i);
+          __bang_transpose(nram_out_r, nram_in_r, para_batch, large_radix);
+          __bang_transpose(nram_out_i, nram_in_i, para_batch, large_radix);
+
+          if (nram_out_r == nram_para_store_pong) {
+            FFT_SWAP_PTR(nram_para_load_pong, nram_para_store_pong)
+          }
+
+          if (last_stage) {
+            __bang_transpose(nram_para_store_pong, nram_out_r, 2,
+                             para_batch * large_radix);
+          } else {
+            __memcpy(nram_para_store_pong, nram_out_r,
+                     para_batch * large_radix * sizeof(DT), NRAM2NRAM);
+            __memcpy(nram_para_store_pong + para_batch * large_radix,
+                     nram_out_i, para_batch * large_radix * sizeof(DT),
+                     NRAM2NRAM);
+          }
+
+          continue;
+        }
+      }
+    }
+    __sync();
+    FFT_SWAP_PTR(nram_para_load_ping, nram_para_load_pong)
+    FFT_SWAP_PTR(nram_para_store_ping, nram_para_store_pong)
+  }
+}

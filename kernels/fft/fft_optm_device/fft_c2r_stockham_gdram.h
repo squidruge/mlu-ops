@@ -237,5 +237,138 @@ __mlu_func__ void computeMutiStageOnchipC2RColumn(DT *input, DT *output,
   int total_num = batch;
   int repeat_num = total_num / taskDim;
   int remain_num = total_num % taskDim;
-  
+
+  char *nram_buf = nram_buffer;
+
+  // [BATCHES OF CORES ALLOCATE]
+  int t_len = repeat_num + ((remain_num > 0 && taskId < remain_num) ? 1 : 0);
+  int t_start = taskId - remain_num <= 0 ? taskId * (repeat_num + 1)
+                                         : (remain_num * (repeat_num + 1) +
+                                            (taskId - remain_num) * repeat_num);
+  int t_end = (t_start + t_len);
+
+  // [CHECK POINT] use of the parameter "out_stride"
+  int radix, section_num, butterfly_num, in_stride, stage_count, value_mul,
+      small_factors_offset, out_stride;
+
+  int *small_factors;
+  int last_stage;
+
+  __nram__ int nram_factors[FFT_MAXFACTORS];
+  int sram_offset = 0;
+
+  // [SRAM MEMORY ALLOCTACE] Factors
+  int *sram_factors = (int *)sram_buffer;
+  sram_offset += FFT_MAXFACTORS * sizeof(int);
+
+  // [SRAM MEMORY ALLOCTACE] Twiddles
+  DT *sram_twiddles = (DT *)(sram_buffer + sram_offset);
+  const int twiddles_size = twiddles_end - twiddles;
+  sram_offset += twiddles_size * sizeof(DT);
+
+  // [SRAM MEMORY ALLOCTACE] DFT_Matrix
+  DT *sram_dftmtx = (DT *)(sram_buffer + sram_offset);
+
+  // [PARAMETERS PREPARE] Global
+  const int _stage_count = factors[0];
+  const int nfft = factors[1];
+
+  // [PARAMETERS PREPARE] Firststage
+  radix = factors[5 * _stage_count + 0];
+  section_num = factors[5 * _stage_count + 1];
+  butterfly_num = factors[5 * _stage_count + 2];
+  out_stride = factors[5 * _stage_count + 3];
+  in_stride = butterfly_num;
+  small_factors_offset = factors[5 * _stage_count + 4];
+
+  stage_count = 1;  // stage_count ↑↑, _stage_count ↓↓
+  last_stage = (_stage_count == 1);
+
+  // [MEMORY COPY G2S] Factors & Twiddles & DFT_Matrix
+  if (__is_mpu()) {
+    __memcpy_async(sram_factors, factors, FFT_MAXFACTORS * sizeof(int),
+                   GDRAM2SRAM);
+    if (twiddles_size) {
+      __memcpy_async(sram_twiddles, twiddles, twiddles_size * sizeof(DT),
+                     GDRAM2SRAM);
+    }
+
+    const dft_table_entry *dft_table_gdram =
+        (const dft_table_entry *)dft_matrix;
+    int dft_matrix_offset = dft_table_gdram[0].offset;
+
+    if (dft_matrix_offset != -1) {
+      __memcpy(sram_dftmtx, dft_matrix, sizeof(DT) * 2 * dft_matrix_offset,
+               GDRAM2SRAM);
+      const dft_table_entry *dft_table = (const dft_table_entry *)sram_dftmtx;
+
+      for (int entry = 0;; entry++) {
+        if (dft_table[entry + 1].radix == -1) {
+          int last_radix = dft_table[entry].radix;
+          int last_offset = dft_table[entry].offset;
+
+          const int K_num = 64 / sizeof(DT);
+          int align_K = K_num * ((last_radix + K_num - 1) / K_num);
+          __memcpy_async(sram_dftmtx, dft_matrix,
+                         sizeof(DT) * 2 * (last_radix * align_K + last_offset),
+                         GDRAM2SRAM);
+          break;
+        }
+      }
+    }
+  }
+  __sync_cluster();
+
+  // [MEMORY COPY S2N] Factors
+  if (__is_ipu()) {
+    __memcpy(nram_factors, sram_factors, FFT_MAXFACTORS * sizeof(int),
+             SRAM2NRAM);
+    factors = nram_factors;
+    twiddles = sram_twiddles;
+  }
+
+  if (__is_mpu()) {
+    return;
+  }
+
+  DT *_twiddles = twiddles;
+
+  // [CHECK POINT] use of the parameter "cur_radix", "butterfly_num_stage"
+  int cur_radix, butterfly_num_stage;
+  for (int loop_stage = 2; loop_stage < _stage_count; loop_stage++) {
+    cur_radix = factors[5 * loop_stage];
+    butterfly_num_stage = factors[5 * loop_stage + 2];
+    twiddles += (cur_radix - 1) * (butterfly_num_stage / 2 + 1) * 2;
+  }
+
+  DT *odd_extra_buffer;
+  int max_para_batch;
+
+  if (__is_ipu()) {
+    odd_extra_buffer = buffer + batch * (nfft << 1);
+
+    // [CHECK POINT]
+    if (_stage_count == 1) FFT_SWAP_PTR(buffer, output);
+
+    if (repeat_num > 0 || taskId < remain_num) {
+      small_factors = factors + small_factors_offset;
+      max_para_batch = (6144 / radix) > batch ? batch : (6144 / radix);
+      for (int t = t_start; t < t_end; t += max_para_batch) {
+          int para_batch =
+              (max_para_batch < (t_end - t)) ? max_para_batch : (t_end - t);
+          DT *input_batch = input + t * 2;
+          DT *output_batch;
+          if (last_stage) {
+            output_batch = output + t * 2;
+          } else {
+            output_batch = output + t * nfft * 2;
+          }
+        computeLargeButterflyFirststageC2RColumn<DT>();
+      }
+    }
+    stage_count--;
+    if (stage_count == 0) {
+      return;
+    }
+  }
 }
