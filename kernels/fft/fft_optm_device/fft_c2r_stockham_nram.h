@@ -1818,6 +1818,7 @@ __mlu_func__ void computeLargeButterflyFirststageC2RColumn<DT>() {
                      sizeof(DT) * 2 * para_batch,
                      nb * large_in_stride * sizeof(DT) * 2, large_radix - 1);
 
+
     }
 
     // [PIPELINE] store-stage
