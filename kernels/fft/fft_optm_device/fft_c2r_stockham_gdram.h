@@ -363,7 +363,10 @@ __mlu_func__ void computeMutiStageOnchipC2RColumn(DT *input, DT *output,
           } else {
             output_batch = output + t * nfft * 2;
           }
-        computeLargeButterflyFirststageC2RColumn<DT>();
+        computeLargeButterflyFirststageC2RColumn<DT>(
+          output_batch, input_batch, twiddles, dft_matrix,
+          butterfly_num, nram_buf, small_factors,
+          nfft, last_stage, para_batch, nb);
       }
     }
     stage_count--;

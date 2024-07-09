@@ -1729,24 +1729,16 @@ __mlu_func__ void computeLargeButterflyFirststageBatchPingpongC2R(
 }
 
 
-  // DT *output, DT *input, const DT *cur_large_twiddles, const DT *_twiddles,
-  // const DT *dft_matrix, int large_section_num, int large_butterfly_num,
-  // int large_out_stride, void *nram_buf, const int *small_factors, int nfft,
-  // const int t_start, const int t_end, int dir, int last_stage, int nb
+  // const DT *cur_large_twiddles,
+  //  int large_section_num,
+  // int large_out_stride, ,,
+  // const int t_start, const int t_end, int dir,
 
 template <typename DT>
-__mlu_func__ void computeLargeButterflyFirststageC2RColumn<DT>() {
-
-
-
-
-
-
-
-
-  
-
-
+__mlu_func__ void computeLargeButterflyFirststageC2RColumn<DT>(
+  DT *output, DT *input, const DT *_twiddles, const DT *dft_matrix,
+  int large_butterfly_num, void *nram_buf, const int *small_factors,
+  int nfft, int last_stage, int para_batch, int nb) {
   const int K_num = 64 / sizeof(DT);
   int align_K = 0;
   const dft_table_entry *dft_table = (const dft_table_entry *)dft_matrix;
@@ -1768,6 +1760,7 @@ __mlu_func__ void computeLargeButterflyFirststageC2RColumn<DT>() {
 
   const DT *small_twiddles = _twiddles + tw_offset * 2;  // complex
 
+  int max_para_butterfly = 2;
   // assign nram space
   int nram_buf_offset = 0;
 
@@ -1800,7 +1793,6 @@ __mlu_func__ void computeLargeButterflyFirststageC2RColumn<DT>() {
                 SRAM2NRAM);
 
   // [CHECK POINT] these parameters are to be adjusted
-  int max_para_butterfly = 2;
   int repeat_num = (half_butterfly_num + max_para_butterfly - 1)
                       / max_para_butterfly;
   int last_butterfly = half_butterfly_num % max_para_butterfly == 0 ?
@@ -1855,36 +1847,20 @@ __mlu_func__ void computeLargeButterflyFirststageC2RColumn<DT>() {
         // [STORE]
         int dst_stride0 = sizeof(DT) * nb;
         int dst_segnum1 = para_butterfly - 1;
-        int dst_stride1;
-        int dst_segnum2;
+        int dst_stride1 = sizeof(DT) * nb * half_butterfly_num;
+        int dst_segnum2 = large_radix - 1;
 
-        int src_stride0;
-        int src_segnum1;
-        int src_stride1;
-        int src_segnum2;
-        // int dst_stride0 = sizeof(DT) * 2 * para_batch;
-        // int dst_segnum1 = para_butterfly - 1;
-        // int dst_stride1 = sizeof(DT) * 2 * para_batch * para_butterfly;
-        // int dst_segnum2 = upper_radix - 1;
+        int src_stride0 = sizeof(DT) * para_batch;
+        int src_segnum1 = para_butterfly - 1;
+        int src_stride1 = sizeof(DT) * para_batch * para_butterfly;
+        int src_segnum2 = large_radix - 1;
 
-        // int src_stride0 = sizeof(DT) * 2 * nb;
-        // int src_segnum1 = para_butterfly - 1;
-        // int src_stride1 = sizeof(DT) * 2 * nb * large_butterfly_num;
-        // int src_segnum2 = upper_radix - 1;
-
-
-        __memcpy_async(output + i * large_radix,
-                       nram_para_store_ping,
-                       );
-        // __memcpy_async(output + i * large_radix * 2 * nb, nram_para_store_ping,
-        //                 para_batch * sizeof(DT) * 2, NRAM2GDRAM,
-        //                 nb * 2 * sizeof(DT), para_batch * sizeof(DT) * 2,
-        //                 large_radix - 1);
+      __memcpy_async(output + i * nb * para_butterfly,
+                     nram_para_store_ping,
+                     sizeof(DT) * para_batch, GDRAM2NRAM,
+                     dst_stride0, dst_segnum1, dst_stride1, dst_segnum2,
+                     src_stride0, src_segnum1, src_stride1, src_segnum2);
       } else {
-        // real
-
-        // imag
-
         // // real
         // __memcpy_async(output + i * large_radix * para_batch,
         //               nram_para_store_ping,
