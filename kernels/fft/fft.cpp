@@ -513,10 +513,11 @@ mluOpStatus_t MLUOP_WIN_API fftFactor(const int _n, int *facbuf,
         break;
 
       case 12:
-        if (n % 4 == 0) {
-          r = 4;
-        } else if ((n % 3) == 0) {
-          r = 3;
+        if (n % 12 == 0) {
+          r = 12;
+        //   r = 4;
+        // } else if ((n % 3) == 0) {
+        //   r = 3;
         }
         break;
 

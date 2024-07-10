@@ -3,9 +3,9 @@ input {
   id: "input1"
   shape {
     dims: 32
-    dims: 513
-    dim_stride: 513
+    dims: 7
     dim_stride: 1
+    dim_stride: 32
   }
   layout: LAYOUT_ARRAY
   dtype: DTYPE_COMPLEX_FLOAT
@@ -21,9 +21,9 @@ output {
   id: "output1"
   shape {
     dims: 32
-    dims: 1024
-    dim_stride: 1024
+    dims: 12
     dim_stride: 1
+    dim_stride: 32
   }
   layout: LAYOUT_ARRAY
   dtype: DTYPE_FLOAT
@@ -42,7 +42,7 @@ handle_param {
 }
 fft_param {
   rank: 1
-  n: 1024
+  n: 12
   direction: 0
   scale_factor: 1
 }

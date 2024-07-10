@@ -248,8 +248,10 @@ __mlu_func__ void computeMutiStageOnchipC2RColumn(DT *input, DT *output,
   int t_end = (t_start + t_len);
 
   // [CHECK POINT] use of the parameter "out_stride"
-  int radix, section_num, butterfly_num, in_stride, stage_count, value_mul,
+  int radix, section_num, butterfly_num, in_stride, stage_count,
       small_factors_offset, out_stride;
+
+  // int value_mul,
 
   int *small_factors;
   int last_stage;
@@ -328,10 +330,10 @@ __mlu_func__ void computeMutiStageOnchipC2RColumn(DT *input, DT *output,
   }
 
   if (__is_mpu()) {
-    return;
+    // return;
   }
 
-  DT *_twiddles = twiddles;
+  // DT *_twiddles = twiddles;
 
   // [CHECK POINT] use of the parameter "cur_radix", "butterfly_num_stage"
   int cur_radix, butterfly_num_stage;
@@ -343,6 +345,17 @@ __mlu_func__ void computeMutiStageOnchipC2RColumn(DT *input, DT *output,
 
   DT *odd_extra_buffer;
   int max_para_batch;
+
+  // [MEMORY CHANGE] input
+  if (taskId == 0) {
+    for (int i = 0 ; i < 7; i ++) {
+      for (int j = 0; j < 64; j++) {
+        input[i * 64 + j] = i;
+      }
+    }
+  }
+
+  __sync_all();
 
   if (__is_ipu()) {
     odd_extra_buffer = buffer + batch * (nfft << 1);
@@ -359,10 +372,12 @@ __mlu_func__ void computeMutiStageOnchipC2RColumn(DT *input, DT *output,
           DT *input_batch = input + t * 2;
           DT *output_batch;
           if (last_stage) {
-            output_batch = output + t * 2;
+            output_batch = output + t;
           } else {
+            // [CHECK POINT]????
             output_batch = output + t * nfft * 2;
           }
+
         computeLargeButterflyFirststageC2RColumn<DT>(
           output_batch, input_batch, twiddles, dft_matrix,
           butterfly_num, nram_buf, small_factors,
@@ -371,7 +386,17 @@ __mlu_func__ void computeMutiStageOnchipC2RColumn(DT *input, DT *output,
     }
     stage_count--;
     if (stage_count == 0) {
-      return;
+      // return;
+    }
+  }
+  __sync_all();
+  if (taskId == 0) {
+    printf("[Onchip output]:\n");
+    for (int i = 0 ; i < 12; i ++) {
+      for (int j = 0; j < 32; j++) {
+        printf("%f ", output[i * 32 + j]);
+      }
+    printf("\n");
     }
   }
 }

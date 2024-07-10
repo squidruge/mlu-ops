@@ -209,13 +209,16 @@ __mlu_func__ void computeGenericButterflyFirststageMat(
   }
 
   __bang_reshape_filter(in_align2, in_align, align_N, 1, 1, align_K);
+
   __memcpy(in_wram, in_align2, align_N * align_K * sizeof(DT), NRAM2WRAM);
 
   __bang_matmul((float *)RR_RI, (float *)dftmtx.r, (float *)in_wram, align_M,
                 align_K, align_N);
+
   __bang_transpose(RR_RI_trans, RR_RI, align_M, align_N);
   __bang_matmul((float *)IR_II, (float *)dftmtx.i, (float *)in_wram, align_M,
                 align_K, align_N);
+
   __bang_transpose(IR_II_trans, IR_II, align_M, align_N);
 
   // DT *RR_trans = &RR_RI_trans[0];
@@ -225,6 +228,7 @@ __mlu_func__ void computeGenericButterflyFirststageMat(
 
   __bang_sub(nram_out_r, RR_RI_trans, &IR_II_trans[butterfly_num * radix],
              radix * butterfly_num);
+
   __bang_add(nram_out_i, &RR_RI_trans[butterfly_num * radix], &IR_II_trans[0],
              radix * butterfly_num);
 }

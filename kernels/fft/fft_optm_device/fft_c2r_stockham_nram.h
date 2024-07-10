@@ -1735,25 +1735,35 @@ __mlu_func__ void computeLargeButterflyFirststageBatchPingpongC2R(
   // const int t_start, const int t_end, int dir,
 
 template <typename DT>
-__mlu_func__ void computeLargeButterflyFirststageC2RColumn<DT>(
+__mlu_func__ void computeLargeButterflyFirststageC2RColumn(
   DT *output, DT *input, const DT *_twiddles, const DT *dft_matrix,
   int large_butterfly_num, void *nram_buf, const int *small_factors,
   int nfft, int last_stage, int para_batch, int nb) {
   const int K_num = 64 / sizeof(DT);
   int align_K = 0;
   const dft_table_entry *dft_table = (const dft_table_entry *)dft_matrix;
-
   int radix, small_in_stride, small_stage_count, large_radix,
       _small_stage_count;
-  int small_section_num, small_butterfly_num, value_mul;
+  int small_section_num;
+  // int value_mul, small_butterfly_num;
   int tw_offset, max_para_num;
+
+
+        // printf("task%d input \n", taskId);
+        // for (int m = 0; m < 14; m++) {
+        //     printf("%f ", input[64 * m]);
+        // }
+        // printf("\n");
+
+
+
 
   _small_stage_count = small_factors[0];
   large_radix = small_factors[1];
   tw_offset = small_factors[2];
 
   const int half_butterfly_num = large_butterfly_num / 2 + 1;
-  const int large_tw_stride = large_butterfly_num / 2 + 1;
+  // const int large_tw_stride = large_butterfly_num / 2 + 1;
 
   max_para_num = (large_butterfly_num < small_factors[3]) ? large_butterfly_num
                                                           : small_factors[3];
@@ -1776,8 +1786,8 @@ __mlu_func__ void computeLargeButterflyFirststageC2RColumn<DT>(
   DT *nram_para_store_pong = (DT *)nram_buf + nram_buf_offset;
   nram_buf_offset += large_radix * max_para_num * 2;  // complex
 
-  DT *nram_para_load_tw = (DT *)nram_buf + nram_buf_offset;
-  nram_buf_offset += large_radix * max_para_num * 2;  // complex
+  // DT *nram_para_load_tw = (DT *)nram_buf + nram_buf_offset;
+  // nram_buf_offset += large_radix * max_para_num * 2;  // complex
 
   DT *_nram_tw = (DT *)nram_buf + nram_buf_offset;
   nram_buf_offset += large_radix * 2;  // complex
@@ -1843,6 +1853,13 @@ __mlu_func__ void computeLargeButterflyFirststageC2RColumn<DT>(
       int i = (repeat_id - 2);
       int para_butterfly = repeat_num - i > 1 ?
             max_para_butterfly : last_butterfly;
+
+        printf("task%d nram_para_store_ping: \n", taskId);
+        for (int m = 0; m < 12; m++) {
+            printf("%f ", nram_para_store_ping[m]);
+        }
+        printf("\n");
+
       if (last_stage) {
         // [STORE]
         int dst_stride0 = sizeof(DT) * nb;
@@ -1857,7 +1874,7 @@ __mlu_func__ void computeLargeButterflyFirststageC2RColumn<DT>(
 
       __memcpy_async(output + i * nb * para_butterfly,
                      nram_para_store_ping,
-                     sizeof(DT) * para_batch, GDRAM2NRAM,
+                     sizeof(DT) * para_batch, NRAM2GDRAM,
                      dst_stride0, dst_segnum1, dst_stride1, dst_segnum2,
                      src_stride0, src_segnum1, src_stride1, src_segnum2);
       } else {
@@ -1886,6 +1903,13 @@ __mlu_func__ void computeLargeButterflyFirststageC2RColumn<DT>(
       DT *nram_out_r = nram_para_load_pong;
       DT *nram_out_i = nram_para_load_pong
         + large_radix * para_batch * para_butterfly;
+
+
+        // printf("task%d nram_para_load_pong: \n", taskId);
+        // for (int m = 0; m < 14; m++) {
+        //     printf("%f ", nram_para_load_pong[m]);
+        // }
+        // printf("\n");
 
       __bang_transpose(nram_in_r, nram_para_load_pong,
                        large_radix * para_batch * para_butterfly, 2);
@@ -1949,15 +1973,37 @@ __mlu_func__ void computeLargeButterflyFirststageC2RColumn<DT>(
                            para_batch,
                            lower_radix * para_butterfly);
           __bang_mul_scalar(
-              nram_in_i + upper_radix * para_batch * para_butterfly,
-              nram_in_i + upper_radix * para_batch * para_butterfly,
-              -1, lower_radix * para_batch * para_butterfly);
+              nram_in_i + (upper_radix * para_butterfly + 1) * para_batch,
+              nram_in_i + (upper_radix * para_butterfly + 1) * para_batch,
+              -1, (lower_radix * para_butterfly - 1) * para_batch);
         }
+        // [MEMORY CHECK]
+
+        // [MEMORY CHECK]
+        // if (taskId == 0) {
+        //   printf("nram_in(processed)\n");
+        //     for (int n = 0; n < 12; n++) {
+        //       printf("%f ", nram_in_r[n]);
+        //       printf("%f ", nram_in_i[n]);
+        //       printf("\n");
+        //     }
+        //   }
 
         computeGenericButterflyFirststageMat(
             nram_out_r, nram_out_i, nram_in_r, nram_in_i, nram_scratch,
             nram_dftmtx, small_section_num * para_batch * para_butterfly,
-            small_section_num * para_batch * para_butterfly, 1, dir, radix);
+            small_section_num * para_batch * para_butterfly,
+            1, FFT_BACKWARD, radix);
+
+        // [MEMORY CHECK]
+        // if (taskId == 0) {
+        //   printf("nram_out(computed)\n");
+        //     for (int n = 0; n < 12; n++) {
+        //       printf("%f ", nram_out_r[n]);
+        //       printf("%f ", nram_out_i[n]);
+        //       printf("\n");
+        //     }
+        //   }
 
         small_stage_count--;
         if (small_stage_count == 0) {
@@ -1975,6 +2021,9 @@ __mlu_func__ void computeLargeButterflyFirststageC2RColumn<DT>(
           if (last_stage) {
             // __bang_transpose(nram_para_store_pong, nram_out_r, 2,
             //                  large_radix * para_batch * para_butterfly);
+            __memcpy(nram_para_store_pong, nram_out_r,
+                     sizeof(DT)* large_radix * para_batch * para_butterfly,
+                     NRAM2NRAM);
           } else {
             __memcpy(nram_para_store_pong, nram_out_r,
                      para_batch * large_radix * para_butterfly * sizeof(DT),
@@ -1984,7 +2033,6 @@ __mlu_func__ void computeLargeButterflyFirststageC2RColumn<DT>(
                      para_batch * large_radix * para_butterfly * sizeof(DT),
                      NRAM2NRAM);
           }
-          continue;
         }
     }
     __sync();

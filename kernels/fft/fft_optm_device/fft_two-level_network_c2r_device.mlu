@@ -53,7 +53,6 @@ __mlu_global__ void MLUKernelFFT1dButterflyRowC2R(
                                       (half *)dft_matrix, (half *)buffer, batch,
                                       fft_flag);
     }; break;
-
     default: {
       MLULOG("mluOpFFT Not Implemented.");
     }

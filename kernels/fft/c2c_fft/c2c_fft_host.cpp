@@ -1898,10 +1898,13 @@ mluOpStatus_t execFFTc2r1d(mluOpHandle_t handle, mluOpFFTPlan_t fft_plan,
   //           mluop::runtime::getClusterLimitCapability(handle);
   // k_dim.y = 1;
   // k_dim.z = 1;
+  fft_plan->is_batch_contiguous = 1;
   if (!fft_plan->is_batch_contiguous) {
+    printf("call of kernelFFT1dButterflyRowC2R\n");
     kernelFFT1dButterflyRowC2R(k_dim, k_type,
                                handle->queue, fft_plan, FFT_IFFT);
   } else {
+    printf("call of kernelFFT1dButterflyColumnC2R\n");
     kernelFFT1dButterflyColumnC2R(k_dim, k_type,
                                   handle->queue, fft_plan, FFT_IFFT);
   }
