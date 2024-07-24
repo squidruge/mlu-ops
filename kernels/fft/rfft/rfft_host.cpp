@@ -1026,7 +1026,7 @@ static mluOpStatus_t makeRFFT1dContiguousOutput(mluOpHandle_t handle,
 
     size_t workspace_size = 0;
     CALL_CNNL(cnnlGetCopyWorkspaceSize(cnnl_handle, cnnl_copy_src_desc,
-                                      cnnl_copy_dst_desc, &workspace_size));
+                                       cnnl_copy_dst_desc, &workspace_size));
 
     void *workspace = nullptr;
     if (workspace_size > 0) {
@@ -1097,7 +1097,7 @@ static mluOpStatus_t makeRFFT2dContiguousOutput(mluOpHandle_t handle,
 
     // set up tensor desc
     const int out_dim_num = 3;
-    int64_t dims[out_dim_num] = {fft_plan->batch, fft_plan->n[0],  // TODO
+    int64_t dims[out_dim_num] = {fft_plan->batch, fft_plan->n[0],
                                  fft_plan->n[1] / 2 + 1};
     int64_t strides[out_dim_num] = {fft_plan->odist,
                                     fft_plan->ostride * fft_plan->onembed[1],
@@ -1122,7 +1122,7 @@ static mluOpStatus_t makeRFFT2dContiguousOutput(mluOpHandle_t handle,
 
     size_t workspace_size = 0;
     CALL_CNNL(cnnlGetCopyWorkspaceSize(cnnl_handle, cnnl_copy_src_desc,
-                                      cnnl_copy_dst_desc, &workspace_size));
+                                       cnnl_copy_dst_desc, &workspace_size));
 
     void *workspace = nullptr;
     if (workspace_size > 0) {
@@ -1171,7 +1171,7 @@ mluOpStatus_t execRFFT1d(mluOpHandle_t handle, const mluOpFFTPlan_t fft_plan,
     INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);
   } else {
     configureRFFT1dWorkspaceAddrs(handle, fft_plan, (void *)input, workspace,
-                                  output);  // TODO
+                                  output);
 
     status = makeRFFT1dContiguousInput(handle, fft_plan, input);
     INTERNAL_CHECK(api, status == MLUOP_STATUS_SUCCESS);

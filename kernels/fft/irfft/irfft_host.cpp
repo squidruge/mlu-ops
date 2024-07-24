@@ -1391,7 +1391,7 @@ static mluOpStatus_t makeIRFFT1dContiguousOutput(mluOpHandle_t handle,
 
     size_t workspace_size = 0;
     CALL_CNNL(cnnlGetCopyWorkspaceSize(cnnl_handle, cnnl_copy_src_desc,
-                                      cnnl_copy_dst_desc, &workspace_size));
+                                       cnnl_copy_dst_desc, &workspace_size));
 
     void *workspace = nullptr;
     if (workspace_size > 0) {
@@ -1800,7 +1800,7 @@ static mluOpStatus_t makeIRFFT2dContiguousOutput(mluOpHandle_t handle,
 
     size_t workspace_size = 0;
     CALL_CNNL(cnnlGetCopyWorkspaceSize(cnnl_handle, cnnl_copy_src_desc,
-                                      cnnl_copy_dst_desc, &workspace_size));
+                                       cnnl_copy_dst_desc, &workspace_size));
 
     void *workspace = nullptr;
     if (workspace_size > 0) {

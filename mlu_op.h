@@ -2972,8 +2972,9 @@ mluOpGetTensorAndDataFromTensorSet(mluOpTensorSetDescriptor_t tensorSetDesc,
  * @par Data Type
  * - The date types of input tensor and output tensor should be the same.
  * - The supported data types of input and output tensors are as follows:
- *   - input tensor: half, float
- *   - output tensor: half, float
+ *   - input tensor: half, float, bfloat16, int32, complex_float
+ *   - output tensor: half, float, bfloat16, int32
+ * - The data type bfloat16 is only supported on MLU500 series.
  *
  * @par Data Layout
  * - None.
@@ -14266,13 +14267,13 @@ mluOpSetFFTReserveArea(mluOpHandle_t handle, mluOpFFTPlan_t fft_plan, void *rese
  * @param[in,out] scale_factor
  * Scale factor applied to the FFT operation. This parameter is used to normalize the result.
  * @param[in,out] workspace
- * Workspace buffer used during the FFT operation. This parameter is used to store intermediate 
+ * Workspace buffer used during the FFT operation. This parameter is used to store intermediate
  * results and other temporary data.
  * @param[in,out] output
- * Output tensor for the FFT operation. This parameter is used to store the result of the 
+ * Output tensor for the FFT operation. This parameter is used to store the result of the
  * FFT transformation.
  * @param[in,out] direction
- * Direction of the FFT operation. This parameter specifies whether to perform a 
+ * Direction of the FFT operation. This parameter specifies whether to perform a
  * forward or inverse FFT transformation.
  * @par Note
  * - For in-place 1D real-to-complex FFTs, the input is a batch of n real numbers, and the
@@ -14312,13 +14313,14 @@ mluOpSetFFTReserveArea(mluOpHandle_t handle, mluOpFFTPlan_t fft_plan, void *rese
  *
  * @par Scale Limitation
  * - For float data types, FFT supports any combination of powers of i (i from 2 to 64), as well as \f$2^mL\f$.
- *   This means that for float data types, FFT can handle a wide range of sizes, allowing flexibility in choosing the 
- *   dimensions of the input data. The values of i can be any integer from 2 to 64, enabling combinations such as 4, 8, 16, 
- *   etc., as well as sizes that are a product of a power of 2 and an additional integer L.
+ *   This means that for float data types, FFT can handle a wide range of sizes, allowing flexibility in choosing the
+ *   dimensions of the input data. The values of i can be any integer from 2 to 64, enabling combinations such as 4, 8,
+ * 16, etc., as well as sizes that are a product of a power of 2 and an additional integer L.
  *
- * - For half data types, FFT support is more limited. It only supports sizes of 2^m, where m is an integer. This constraint 
- *   means that the input size for half data types must be a power of 2. This restriction is important to note when planning 
- *   to use FFT with half-precision floating-point data, as it limits the flexibility compared to float data types.
+ * - For half data types, FFT support is more limited. It only supports sizes of 2^m, where m is an integer. This
+ * constraint means that the input size for half data types must be a power of 2. This restriction is important to note
+ * when planning to use FFT with half-precision floating-point data, as it limits the flexibility compared to float data
+ * types.
  *
  *
  * @par API Dependency
